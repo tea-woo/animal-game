@@ -382,41 +382,69 @@ export class Player {
     this.animator.play({
       duration: dur,
       onPose: (p, d) => {
-        const wind = smoothstep(0, 0.35, p) * (1 - smoothstep(0.35, 1, p));
-        const strikeT = smoothstep(0.3, 0.52, p) * (1 - smoothstep(0.55, 1, p));
-        const rec = smoothstep(0.6, 1, p);
+        const wind = smoothstep(0, 0.32, p) * (1 - smoothstep(0.3, 0.46, p));
+        const strikeT = smoothstep(0.3, 0.5, p) * (1 - smoothstep(0.56, 0.82, p));
+        const follow = smoothstep(0.55, 0.95, p) * Math.sin(clamp((p - 0.55) / 0.4, 0, 1) * Math.PI * 2) * 0.12;
         if (cfgId === 'lion') {
-          d.twist = -0.35 * wind + 0.55 * strikeT;
-          d.rf = -1.05 * wind + 0.9 * strikeT;
-          d.rfk = 1.1 * wind + 0.1 * strikeT;
-          d.rbr = 0;
-          d.pitch += 0.12 * strikeT - 0.08 * wind;
-          d.headPitch += -0.14 * wind + 0.2 * strikeT;
-          d.jaw = 0.3 * wind;
-          d.bodyY -= 0.04 * strikeT;
+          // 앞발을 높이 치켜들었다가 크게 내려긋는 동작
+          d.twist = -0.44 * wind + 0.66 * strikeT + follow;
+          d.rf = -1.3 * wind + 1.0 * strikeT;
+          d.rfk = 1.4 * wind + 0.15 * strikeT;
+          d.rfa = -0.95 * wind + 0.55 * strikeT;
+          d.lf = 0.16 * wind;
+          d.lfk = 0.3 * wind;
+          d.pitch = -0.12 * wind + 0.15 * strikeT;
+          d.headPitch = -0.2 * wind + 0.24 * strikeT;
+          d.headYaw = -0.28 * wind + 0.38 * strikeT;
+          d.jaw = 0.4 * wind + 0.14 * strikeT;
+          d.bodyY = 0.05 * wind - 0.05 * strikeT;
+          d.lb = -0.14 * wind; d.rb = 0.12 * wind;
+          d.tailX = 0.2 * wind + 0.3 * strikeT;
         } else if (cfgId === 'wolf') {
-          d.neck = -0.12 * wind + 0.2 * strikeT;
-          d.headPitch = -0.25 * wind + 0.35 * strikeT;
-          d.lunge = -0.28 * wind + 0.45 * strikeT;
-          d.jaw = 0.55 * wind * (1 - smoothstep(0.35, 0.5, p)) + 0.05;
-          d.pitch += 0.1 * strikeT;
-          d.lf = -0.25 * strikeT * (1 - rec);
+          // 낮게 웅크린 준비 → 빠른 물기 → 흘리기
+          const crouch = smoothstep(0, 0.26, p) * (1 - smoothstep(0.3, 0.5, p));
+          const snap = smoothstep(0.26, 0.4, p) * (1 - smoothstep(0.5, 0.9, p));
+          d.bodyY = -0.1 * crouch - 0.03 * snap;
+          d.pitch = 0.06 * crouch + 0.15 * snap;
+          d.neck = -0.2 * crouch + 0.28 * snap;
+          d.headPitch = -0.32 * crouch + 0.36 * snap;
+          d.lunge = -0.34 * crouch + 0.52 * snap;
+          d.jaw = 0.7 * crouch * (1 - smoothstep(0.34, 0.46, p)) + 0.12;
+          d.lf = -0.5 * crouch + 0.22 * snap;
+          d.rf = -0.5 * crouch + 0.22 * snap;
+          d.lfk = 0.66 * crouch; d.rfk = 0.66 * crouch;
+          d.lfa = -0.4 * crouch; d.rfa = -0.4 * crouch;
+          d.lb = 0.32 * crouch; d.rb = 0.32 * crouch;
+          d.lbk = -0.5 * crouch; d.rbk = -0.5 * crouch;
+          d.tailX = 0.15 + 0.55 * snap;
         } else if (cfgId === 'bear') {
-          d.pitch = -0.3 * wind + 0.34 * strikeT;
-          d.bodyY = 0.12 * wind - 0.1 * strikeT;
-          d.lf = -1.15 * wind + 0.35 * strikeT;
-          d.rf = -1.15 * wind + 0.35 * strikeT;
-          d.lfk = 1.2 * wind;
-          d.rfk = 1.2 * wind;
-          d.jaw = 0.4 * wind;
-          d.headPitch += -0.25 * wind + 0.3 * strikeT;
+          // 두 앞발을 들고 상체를 세운 뒤 내리찍기
+          const rear = smoothstep(0, 0.42, p) * (1 - smoothstep(0.42, 0.56, p));
+          const slam = smoothstep(0.42, 0.56, p) * (1 - smoothstep(0.66, 1, p));
+          d.pitch = -0.4 * rear + 0.38 * slam;
+          d.bodyY = 0.18 * rear - 0.13 * slam;
+          d.lf = -1.35 * rear + 0.42 * slam;
+          d.rf = -1.35 * rear + 0.42 * slam;
+          d.lfk = 1.45 * rear; d.rfk = 1.45 * rear;
+          d.lfa = -0.75 * rear; d.rfa = -0.75 * rear;
+          d.lb = 0.26 * rear; d.rb = 0.26 * rear;
+          d.lbk = -0.32 * rear; d.rbk = -0.32 * rear;
+          d.jaw = 0.58 * rear + 0.2 * slam;
+          d.headPitch = -0.32 * rear + 0.36 * slam;
+          d.tailX = 0.28 * rear;
         } else if (cfgId === 'anaconda') {
-          d.neck = -0.2 * wind + 0.12 * strikeT;
-          d.headPitch = -0.3 * wind + 0.3 * strikeT;
-          d.lunge = -0.5 * wind + 0.65 * strikeT;
-          d.jaw = 0.7 * wind * (1 - smoothstep(0.3, 0.45, p)) + 0.12 * strikeT;
-          d.sway = 0.3 * wind + 0.2 * strikeT;
-          d.pitch += 0.1 * strikeT;
+          // 머리를 들어 올린 채 웅크렸다가 튀어나가는 기습
+          const coilUp = smoothstep(0, 0.3, p) * (1 - smoothstep(0.32, 0.5, p));
+          const strikeT2 = smoothstep(0.26, 0.4, p) * (1 - smoothstep(0.52, 1, p));
+          d.neck = -0.26 * coilUp + 0.18 * strikeT2;
+          d.headPitch = -0.36 * coilUp + 0.34 * strikeT2;
+          d.lunge = -0.56 * coilUp + 0.72 * strikeT2;
+          d.bodyY = 0.13 * coilUp - 0.04 * strikeT2;
+          d.jaw = 0.78 * coilUp * (1 - smoothstep(0.34, 0.46, p)) + 0.14 * strikeT2;
+          d.coil = 0.28 * coilUp;
+          d.sway = 0.36 * coilUp + 0.2 * strikeT2;
+          d.pitch = 0.12 * strikeT2;
+          d.tongue = 0.9 * strikeT2;
         }
       },
     });
@@ -430,18 +458,18 @@ export class Player {
       colors.forEach((c, i) => {
         setTimeout(() => {
           if (!this.game.running) return;
-          this.game.vfx.slash(p, this.yaw, { color: c, radius: range * (0.85 + i * 0.09), arc: 2.3, dur: 0.3, plane: 'vertical', tilt: -0.5 + i * 0.5, y: 0.8 + i * 0.25, thickness: 0.28 });
-        }, i * 55);
+          this.game.vfx.slash(p, this.yaw, { color: c, radius: range * (0.46 + i * 0.07), arc: 2.1, dur: 0.26, plane: 'vertical', tilt: -0.45 + i * 0.45, y: 0.75 + i * 0.22, thickness: 0.24 });
+        }, i * 50);
       });
       this.game.vfx.burst(new THREE.Vector3(p.x, p.y + 1.0, p.z), { count: 8, color: 0xffe2a0, speed: 6, size: 0.45, life: 0.35, gravity: 4 });
     } else if (id === 'wolf') {
-      this.game.vfx.slash(p, this.yaw, { color: 0xcfe6ff, radius: range * 0.8, arc: 1.1, dur: 0.22, plane: 'vertical', y: 0.85, thickness: 0.3 });
+      this.game.vfx.slash(p, this.yaw, { color: 0xcfe6ff, radius: range * 0.42, arc: 1.05, dur: 0.2, plane: 'vertical', y: 0.85, thickness: 0.2 });
       this.game.vfx.burst(new THREE.Vector3(p.x, p.y + 0.9, p.z), { count: 6, color: 0xdff0ff, speed: 7, size: 0.35, life: 0.3, gravity: 3 });
     } else if (id === 'bear') {
-      this.game.vfx.slash(p, this.yaw, { color: 0xffb066, radius: range * 0.78, arc: 2.7, dur: 0.32, plane: 'horizontal', y: 0.5, thickness: 0.5 });
+      this.game.vfx.slash(p, this.yaw, { color: 0xffb066, radius: range * 0.55, arc: 2.5, dur: 0.3, plane: 'horizontal', y: 0.45, thickness: 0.3 });
       this.game.vfx.burst(new THREE.Vector3(p.x, 0.4, p.z), { count: 12, color: 0xd8b47a, speed: 6, size: 0.6, life: 0.5, gravity: 9, up: 0.8 });
     } else if (id === 'anaconda') {
-      this.game.vfx.slash(p, this.yaw, { color: 0xa8e07a, radius: range * 0.7, arc: 1.0, dur: 0.2, plane: 'vertical', y: 0.9, thickness: 0.26 });
+      this.game.vfx.slash(p, this.yaw, { color: 0xa8e07a, radius: range * 0.4, arc: 0.95, dur: 0.18, plane: 'vertical', y: 0.9, thickness: 0.18 });
       this.game.vfx.burst(new THREE.Vector3(p.x, p.y + 0.9, p.z), { count: 7, color: 0xc8f09a, speed: 6, size: 0.4, life: 0.35, gravity: 5 });
     }
   }
@@ -504,15 +532,20 @@ export class Player {
       onPose: (p, d) => {
         const open = smoothstep(0.22, 0.36, p) * (1 - smoothstep(0.8, 1, p));
         d.jaw = 0.62 * open;
-        d.headPitch = -0.42 * open + Math.sin(p * 26) * 0.03 * open;
-        d.neck = -0.26 * open;
-        d.pitch = -0.2 * open;
-        d.bodyY = 0.02 * open;
-        d.roll = Math.sin(p * 18) * 0.02 * open;
-        d.lf = -0.35 * open;
-        d.rf = -0.35 * open;
-        d.lfk = 0.4 * open;
-        d.rfk = 0.4 * open;
+        d.headPitch = -0.44 * open + Math.sin(p * 26) * 0.035 * open;
+        d.neck = -0.3 * open;
+        d.pitch = -0.24 * open;
+        d.bodyY = 0.03 * open;
+        d.roll = Math.sin(p * 18) * 0.025 * open;
+        d.lf = -0.4 * open;
+        d.rf = -0.4 * open;
+        d.lfk = 0.45 * open;
+        d.rfk = 0.45 * open;
+        d.lfa = -0.3 * open;
+        d.rfa = -0.3 * open;
+        d.lb = 0.18 * open;
+        d.rb = 0.18 * open;
+        d.tailX = 0.4 * open;
       },
     });
     this.game.sfx.roar();
@@ -562,22 +595,28 @@ export class Player {
       onPose: (p, d) => {
         if (p < 0.22) {
           const c = smoothstep(0, 0.22, p);
-          d.bodyY = -0.14 * c;
-          d.pitch = 0.06 * c;
-          d.lf = d.rf = -0.7 * c;
-          d.lfk = d.rfk = 0.9 * c;
-          d.lb = d.rb = 0.5 * c;
-          d.lbk = d.rbk = -0.7 * c;
-          d.headPitch = 0.12 * c;
+          d.bodyY = -0.16 * c;
+          d.pitch = 0.07 * c;
+          d.lf = d.rf = -0.78 * c;
+          d.lfk = d.rfk = 0.95 * c;
+          d.lfa = d.rfa = -0.5 * c;
+          d.lb = d.rb = 0.56 * c;
+          d.lbk = d.rbk = -0.78 * c;
+          d.lba = d.rba = 0.4 * c;
+          d.headPitch = 0.14 * c;
+          d.tailX = -0.1 * c;
         } else {
           const air = smoothstep(0.22, 0.4, p) * (1 - smoothstep(0.62, 0.8, p));
-          d.lf = d.rf = -0.9 * air + 0.5 * (1 - air);
-          d.lfk = d.rfk = 1.2 * air;
-          d.lb = d.rb = 0.7 * air;
+          d.lf = d.rf = -0.95 * air + 0.5 * (1 - air);
+          d.lfk = d.rfk = 1.25 * air;
+          d.lfa = d.rfa = 0.7 * air;
+          d.lb = d.rb = 0.72 * air;
           d.lbk = d.rbk = -1.0 * air;
-          d.pitch = -0.22 * air + 0.3 * smoothstep(0.7, 0.85, p);
-          d.headPitch = -0.2 * air;
-          d.tailX = 0.5 * air;
+          d.lba = d.rba = -0.3 * air;
+          d.pitch = -0.24 * air + 0.32 * smoothstep(0.7, 0.85, p);
+          d.headPitch = -0.22 * air;
+          d.tailX = 0.55 * air;
+          d.jaw = 0.25 * air;
         }
       },
     });
@@ -623,14 +662,16 @@ export class Player {
       duration: dur,
       onPose: (p, d) => {
         const a = Math.sin(Math.min(1, p * 1.6) * Math.PI);
-        d.pitch = 0.3 * a;
-        d.bodyY = -0.05 * a;
+        d.pitch = 0.32 * a;
+        d.bodyY = -0.06 * a;
         d.lf = d.rf = 0.7 * a;
         d.lfk = d.rfk = -0.3 * a;
+        d.lfa = d.rfa = 0.35 * a;
         d.lb = d.rb = -0.7 * a;
         d.lbk = d.rbk = 0.4 * a;
-        d.headPitch = -0.2 * a;
-        d.jaw = 0.2 * a;
+        d.lba = d.rba = -0.2 * a;
+        d.headPitch = -0.22 * a;
+        d.jaw = 0.22 * a;
         d.tailX = 0.9 * a;
       },
     });
@@ -662,13 +703,18 @@ export class Player {
       duration: dur,
       onPose: (p, d) => {
         const up = smoothstep(0.1, 0.35, p) * (1 - smoothstep(0.8, 1, p));
-        d.headPitch = -0.6 * up;
-        d.neck = -0.35 * up;
-        d.jaw = 0.45 * up;
-        d.bodyY = 0.06 * up;
-        d.pitch = -0.14 * up;
-        d.lf = -0.2 * up;
-        d.rf = -0.2 * up;
+        d.headPitch = -0.62 * up;
+        d.neck = -0.38 * up;
+        d.jaw = 0.48 * up;
+        d.bodyY = 0.07 * up;
+        d.pitch = -0.16 * up;
+        d.lf = -0.22 * up;
+        d.rf = -0.22 * up;
+        d.lfk = 0.3 * up;
+        d.rfk = 0.3 * up;
+        d.tailX = 0.7 * up;
+        d.tailY = 0.1 * up;
+        d.ear = 0.6 * up;
       },
     });
     return true;
@@ -702,21 +748,25 @@ export class Player {
       onPose: (p, d) => {
         if (p < 0.42) {
           const c = smoothstep(0, 0.42, p);
-          d.pitch = -0.34 * c;
-          d.bodyY = 0.2 * c;
-          d.lf = d.rf = -1.35 * c;
-          d.lfk = d.rfk = 1.3 * c;
-          d.headPitch = -0.3 * c;
-          d.jaw = 0.5 * c;
-          d.tailX = 0.3 * c;
+          d.pitch = -0.38 * c;
+          d.bodyY = 0.22 * c;
+          d.lf = d.rf = -1.45 * c;
+          d.lfk = d.rfk = 1.4 * c;
+          d.lfa = d.rfa = -0.8 * c;
+          d.lb = d.rb = 0.3 * c;
+          d.lbk = d.rbk = -0.36 * c;
+          d.headPitch = -0.34 * c;
+          d.jaw = 0.58 * c;
+          d.tailX = 0.35 * c;
         } else {
           const c = smoothstep(0.42, 0.55, p) * (1 - smoothstep(0.75, 1, p));
-          d.pitch = 0.32 * c;
-          d.bodyY = -0.12 * c;
-          d.lf = d.rf = 0.25 * c;
-          d.lfk = d.rfk = 0.1 * c;
-          d.headPitch = 0.3 * c;
-          d.jaw = 0.25 * c;
+          d.pitch = 0.36 * c;
+          d.bodyY = -0.14 * c;
+          d.lf = d.rf = 0.3 * c;
+          d.lfk = d.rfk = 0.12 * c;
+          d.lfa = d.rfa = 0.25 * c;
+          d.headPitch = 0.34 * c;
+          d.jaw = 0.3 * c;
         }
       },
     });
@@ -766,13 +816,16 @@ export class Player {
       duration: dur,
       onPose: (p, d) => {
         const a = Math.sin(Math.min(1, p * 1.4) * Math.PI);
-        d.pitch = 0.26 * a;
-        d.bodyY = -0.06 * a;
-        d.lf = d.rf = 0.55 * a;
-        d.lfk = d.rfk = 0.3 * a;
-        d.lb = d.rb = -0.5 * a;
-        d.headPitch = 0.12 * a;
-        d.jaw = 0.45 * a;
+        d.pitch = 0.28 * a;
+        d.bodyY = -0.07 * a;
+        d.lf = d.rf = 0.58 * a;
+        d.lfk = d.rfk = 0.32 * a;
+        d.lfa = d.rfa = -0.2 * a;
+        d.lb = d.rb = -0.52 * a;
+        d.lbk = d.rbk = 0.28 * a;
+        d.headPitch = 0.14 * a;
+        d.jaw = 0.48 * a;
+        d.tailX = 0.3 * a;
       },
     });
     return true;
@@ -830,7 +883,7 @@ export class Player {
         if (grabbed) {
           // 대상 옆에 붙어 조인다
           const side = new THREE.Vector3(-dirTo.z, 0, dirTo.x);
-          const anchor = target.root.position.clone().addScaledVector(side, 0.55);
+          const anchor = target.root.position.clone().addScaledVector(side, 0.32);
           this.pos.lerp(anchor, 1 - Math.exp(-8 * dt));
           this.pos.y = 0;
           this.vel.set(0, 0, 0);
@@ -857,14 +910,16 @@ export class Player {
     this.animator.play({
       duration: dur,
       onPose: (p, d) => {
-        const grip = smoothstep(0.25, 0.4, p) * (1 - smoothstep(0.85, 1, p));
-        d.sway = 0.9 * grip + 0.3 * (1 - grip);
-        d.twist = Math.sin(p * 44) * 0.16 * grip;
-        d.bodyY = -0.05 * grip;
-        d.headPitch = 0.25 * grip;
-        d.neck = 0.1 * grip;
-        d.jaw = 0.3 * grip;
-        d.pitch = 0.08 * grip;
+        const grip = smoothstep(0.22, 0.4, p) * (1 - smoothstep(0.86, 1, p));
+        // 몸을 나선으로 감아 올라가며 대상를 옥죄는 동작
+        d.coil = grip;
+        d.bodyY = 0.14 * grip;
+        d.sway = 0.1 * (1 - grip) + 0.04 * grip;
+        d.twist = Math.sin(p * 26) * 0.05 * grip;
+        d.neck = 0.22 * grip;
+        d.headPitch = 0.18 * grip;
+        d.jaw = 0.25 * grip;
+        d.pitch = 0.06 * grip;
       },
     });
     return true;
@@ -897,10 +952,11 @@ export class Player {
       duration: dur,
       onPose: (p, d) => {
         const a = p < 0.34 ? -smoothstep(0, 0.34, p) : Math.sin(smoothstep(0.34, 0.8, p) * Math.PI);
-        d.twist = -0.75 * (p < 0.34 ? smoothstep(0, 0.34, p) : 0) + 1.15 * smoothstep(0.34, 0.6, p) * (1 - smoothstep(0.7, 1, p));
-        d.sway = 0.85;
-        d.bodyY = 0.02 * a;
-        d.headPitch = 0.2 * a;
+        d.twist = -0.85 * (p < 0.34 ? smoothstep(0, 0.34, p) : 0) + 1.2 * smoothstep(0.34, 0.6, p) * (1 - smoothstep(0.7, 1, p));
+        d.sway = 0.9;
+        d.coil = 0.16 * (1 - smoothstep(0.6, 1, p));
+        d.bodyY = 0.03 * a;
+        d.headPitch = 0.22 * a;
       },
     });
     return true;

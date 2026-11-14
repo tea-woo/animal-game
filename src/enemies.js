@@ -64,8 +64,8 @@ export class Boar {
     this.bar = bar;
     const mat = new THREE.SpriteMaterial({ map: bar.tex, transparent: true, depthWrite: false, depthTest: false });
     this.barSprite = new THREE.Sprite(mat);
-    this.barSprite.scale.set(2.0, 0.3, 1);
-    this.barSprite.position.y = 2.0;
+    this.barSprite.scale.set(1.15, 0.16, 1);
+    this.barSprite.position.y = 1.45 * this.type.scale;
     this.barSprite.renderOrder = 25;
     this.barSprite.visible = false;
     this.root.add(this.barSprite);

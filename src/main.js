@@ -62,7 +62,8 @@ class Game {
 
     this.camYaw = 0;
     this.camPitch = 0.34;
-    this.camDist = 8.8;
+    this.camDist = this.mobile ? 9.6 : 8.8;
+    this.viewScale = 1;
     this.camTarget = new THREE.Vector3(0, 1.1, 8);
     this.lastCamInput = 0;
     this.paused = true;
@@ -107,7 +108,12 @@ class Game {
   resize() {
     const w = window.innerWidth;
     const h = window.innerHeight;
-    this.camera.aspect = w / h;
+    const aspect = w / h;
+    this.camera.aspect = aspect;
+    // 세로 화면(폰)에서는 시야각을 조금 넓혀 동물이 잘리지 않게
+    this.camera.fov = aspect < 0.85 ? 58 : 52;
+    // 화면이 좁을수록 카메라를 뒤로 물린다
+    this.viewScale = aspect < 1 ? clamp(1.0 / Math.max(0.55, aspect), 1, 1.55) : 1;
     this.camera.updateProjectionMatrix();
     this.renderer.setSize(w, h, false);
   }
@@ -120,7 +126,8 @@ class Game {
     this.running = true;
     this.sfx.resume();
     this.camYaw = this.player.yaw + Math.PI;
-    this.camDist = 8.8;
+    this.camDist = this.mobile ? 9.6 : 8.8;
+    this.camPitch = 0.34;
   }
 
   openSelect() {
@@ -152,7 +159,7 @@ class Game {
     const ahead = new THREE.Vector3(Math.sin(p.yaw), 0, Math.cos(p.yaw)).multiplyScalar(0.55);
     target.add(ahead);
 
-    const dist = this.camDist;
+    const dist = this.camDist * (this.viewScale || 1);
     const horiz = Math.cos(this.camPitch) * dist;
     const vert = Math.sin(this.camPitch) * dist + 0.55;
     const desired = new THREE.Vector3(
@@ -230,6 +237,10 @@ class Game {
     const fake = new FakeInput();
     const wasPaused = this.paused;
     this.paused = true;
+    // 부활로 인한 피해량 측정 오차 방지
+    this.enemies.all.forEach((e) => {
+      e.respawnT = 999;
+    });
 
     const step = (n) => {
       for (let i = 0; i < n; i++) this.stepOnce(1 / 60, fake);
@@ -239,10 +250,16 @@ class Game {
       e.alive = true;
       e.hp = e.maxHp;
       e.stunT = 0;
+      e.constricted = false;
       e.state = 'idle';
+      e.respawnT = 999;
       e.root.visible = true;
       e.root.position.set(this.player.pos.x + Math.sin(this.player.yaw) * dist, 0, this.player.pos.z + Math.cos(this.player.yaw) * dist);
       return e;
+    };
+    const totalHp = () => this.enemies.all.reduce((s, e) => s + Math.max(0, e.hp), 0);
+    const waitIdle = () => {
+      for (let i = 0; i < 300 && this.player.action; i++) this.stepOnce(1 / 60, fake);
     };
 
     try {
@@ -284,28 +301,33 @@ class Game {
           step(45);
 
           const e1 = placeEnemy(2.0);
-          const hp0 = e1.hp;
+          this.player.vel.set(0, 0, 0);
+          const hp0 = totalHp();
           fake.press('attack');
-          step(40);
-          r.attackDamage = +(hp0 - e1.hp).toFixed(0);
+          step(45);
+          waitIdle();
+          r.attackDamage = +(hp0 - totalHp()).toFixed(0);
           r.combo = this.player.combo;
 
-          const e2 = placeEnemy(2.4);
-          const hp1 = e2.hp;
+          placeEnemy(2.4);
+          const hp1 = totalHp();
           fake.press('skill1');
-          step(120);
+          step(160);
+          waitIdle();
           r.skill1 = this.player.cfg.skills[0].name;
-          r.skill1Damage = +(hp1 - e2.hp).toFixed(0);
+          r.skill1Damage = +(hp1 - totalHp()).toFixed(0);
           r.skill1Cooldown = +(this.player.cd[this.player.cfg.skills[0].id] || 0).toFixed(1);
 
-          const e3 = placeEnemy(2.4);
-          const hp2 = e3.hp;
+          placeEnemy(2.4);
+          const hp2 = totalHp();
           fake.press('skill2');
-          step(130);
+          step(170);
+          waitIdle();
           r.skill2 = this.player.cfg.skills[1].name;
-          r.skill2Damage = +(hp2 - e3.hp).toFixed(0);
+          r.skill2Damage = +(hp2 - totalHp()).toFixed(0);
+          r.skill2Cooldown = +(this.player.cd[this.player.cfg.skills[1].id] || 0).toFixed(1);
 
-          r.ok = r.meshes > 8 && r.walkDist > 1 && r.jumpHeight > 0.3 && r.attackDamage > 0 && r.skill1Damage > 0 && r.skill2Damage >= 0;
+          r.ok = r.meshes > 8 && r.walkDist > 1 && r.jumpHeight > 0.3 && r.attackDamage > 0 && r.skill1Damage > 0 && r.skill2Damage >= 0 && r.skill1Cooldown > 0 && r.skill2Cooldown > 0;
           if (!r.ok) out.ok = false;
         } catch (err) {
           r.ok = false;

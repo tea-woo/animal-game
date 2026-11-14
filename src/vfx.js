@@ -166,7 +166,7 @@ export class VFX {
 
     for (let i = 0; i < count; i++) {
       if (this.spriteCount > this.maxSprites) break;
-      const s = this._sprite(color, size * (0.5 + Math.random()), 0.95, additive);
+      const s = this._sprite(color, size * 0.5 * (0.55 + Math.random() * 0.7), 0.85, additive);
       s.position.copy(pos);
       const a = Math.random() * Math.PI * 2;
       const r = Math.random();
@@ -198,7 +198,7 @@ export class VFX {
   // ── 달리는 먼지 ──────────────────────────────────────────
   dust(pos, dirX = 0, dirZ = 0, strength = 1) {
     if (this.spriteCount > this.maxSprites - 20) return;
-    const s = this._sprite(0xd8c48f, 0.9 * strength, 0.5, false);
+    const s = this._sprite(0xd8c48f, 0.5 * strength, 0.4, false);
     s.position.set(pos.x + (Math.random() - 0.5) * 0.6, 0.18, pos.z + (Math.random() - 0.5) * 0.6);
     const vel = new THREE.Vector3(-dirX * (1.4 + Math.random()) + (Math.random() - 0.5), 0.8 + Math.random() * 0.7, -dirZ * (1.4 + Math.random()) + (Math.random() - 0.5));
     let t = 0;
@@ -259,7 +259,7 @@ export class VFX {
     tex.needsUpdate = true;
 
     sprite.material.opacity = 1;
-    const base = (crit ? 1.5 : 1.05) * scale;
+    const base = (crit ? 0.62 : 0.5) * scale;
     sprite.scale.set(base * 2, base, 1);
     sprite.position.copy(pos);
     sprite.position.y += 1.4;

@@ -31,6 +31,40 @@ export class Input {
     this.bindCanvas();
     this.bindButtons();
     this.bindJoystick();
+    this.blockZoom();
+  }
+
+  // iOS Safari 핀치/더블탭 확대 차단
+  blockZoom() {
+    const stop = (e) => e.preventDefault();
+    ['gesturestart', 'gesturechange', 'gestureend'].forEach((t) =>
+      document.addEventListener(t, stop, { passive: false })
+    );
+    document.addEventListener('dblclick', stop, { passive: false });
+    document.addEventListener(
+      'touchmove',
+      (e) => {
+        if (e.touches && e.touches.length > 1) e.preventDefault();
+      },
+      { passive: false }
+    );
+    let lastEnd = 0;
+    document.addEventListener(
+      'touchend',
+      (e) => {
+        const now = performance.now();
+        if (now - lastEnd < 320) e.preventDefault();
+        lastEnd = now;
+      },
+      { passive: false }
+    );
+    document.addEventListener('contextmenu', stop);
+    const vv = window.visualViewport;
+    if (vv) {
+      vv.addEventListener('resize', () => {
+        if (Math.abs((vv.scale || 1) - 1) > 0.01) window.scrollTo(0, 0);
+      });
+    }
   }
 
   bindKeyboard() {

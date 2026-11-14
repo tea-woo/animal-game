@@ -1,7 +1,44 @@
 // 아레나 — 사바나/숲 지형, 조명, 장식
 import THREE from './three.js';
 import { ellipsoid, cylinder, cone, material } from './builders.js';
-import { clamp, fbm, rand, smoothstep, TAU } from './util.js';
+import { clamp, fbm, rand, smoothstep, TAU, makeSoftCircleTexture } from './util.js';
+
+function makeGroundTexture() {
+  const c = document.createElement('canvas');
+  c.width = c.height = 512;
+  const g = c.getContext('2d');
+  g.fillStyle = '#ffffff';
+  g.fillRect(0, 0, 512, 512);
+  for (let i = 0; i < 60; i++) {
+    const x = Math.random() * 512;
+    const y = Math.random() * 512;
+    const r = 30 + Math.random() * 90;
+    const v = 190 + Math.random() * 60;
+    const grad = g.createRadialGradient(x, y, 0, x, y, r);
+    grad.addColorStop(0, `rgba(${v},${v - 4},${v - 18},0.16)`);
+    grad.addColorStop(1, 'rgba(255,255,255,0)');
+    g.fillStyle = grad;
+    g.beginPath();
+    g.arc(x, y, r, 0, Math.PI * 2);
+    g.fill();
+  }
+  for (let i = 0; i < 14000; i++) {
+    const x = Math.random() * 512;
+    const y = Math.random() * 512;
+    const r = 0.4 + Math.random() * 1.8;
+    const v = 170 + Math.random() * 85;
+    g.fillStyle = `rgba(${v},${v - 5},${v - 22},${0.08 + Math.random() * 0.18})`;
+    g.beginPath();
+    g.arc(x, y, r, 0, Math.PI * 2);
+    g.fill();
+  }
+  const tex = new THREE.CanvasTexture(c);
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  tex.repeat.set(22, 22);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.anisotropy = 4;
+  return tex;
+}
 
 export const ARENA_RADIUS = 40;
 
@@ -99,7 +136,7 @@ export function buildWorld(scene, opts = {}) {
 
   const ground = new THREE.Mesh(
     groundGeo,
-    new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.98, metalness: 0 })
+    new THREE.MeshStandardMaterial({ vertexColors: true, map: makeGroundTexture(), roughness: 0.98, metalness: 0 })
   );
   ground.receiveShadow = true;
   group.add(ground);
@@ -235,7 +272,16 @@ export function buildWorld(scene, opts = {}) {
   moteGeo.setAttribute('position', new THREE.BufferAttribute(motePos, 3));
   const motes = new THREE.Points(
     moteGeo,
-    new THREE.PointsMaterial({ color: 0xffe9b8, size: 0.14, transparent: true, opacity: 0.55, depthWrite: false, blending: THREE.AdditiveBlending })
+    new THREE.PointsMaterial({
+      color: 0xffe9b8,
+      map: new THREE.CanvasTexture(makeSoftCircleTexture(32, 0.15)),
+      size: 0.18,
+      transparent: true,
+      opacity: 0.5,
+      alphaTest: 0.01,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+    })
   );
   group.add(motes);
 
