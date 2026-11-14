@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+<meta name="theme-color" content="#0b0d10" />
+<meta name="description" content="야생의 왕좌 — 사자, 늑대, 곰으로 변신해 싸우는 3D 동물 액션 게임" />
+<title>야생의 왕좌 · Wild Throne</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🦁</text></svg>" />
+<link rel="stylesheet" href="./style.css" />
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.169.0/build/three.module.js",
+    "three/": "https://cdn.jsdelivr.net/npm/three@0.169.0/"
+  }
+}
+</script>
+</head>
+<body>
+<div id="app">
+  <canvas id="scene" aria-label="3D 게임 화면"></canvas>
+
+  <!-- ── HUD ───────────────────────────────────────────── -->
+  <div id="hud" class="hidden" aria-hidden="true">
+    <div class="hud-top">
+      <div class="panel vitals">
+        <div class="vital-head">
+          <span class="emoji" id="animal-emoji">🦁</span>
+          <div class="vital-title">
+            <strong id="animal-name">사자</strong>
+            <span id="animal-tag">사바나의 제압자</span>
+          </div>
+          <span class="pill" id="buff-pill" hidden>강화</span>
+        </div>
+        <div class="bar hp"><i id="hp-fill"></i><span id="hp-text">140 / 140</span></div>
+        <div class="bar stamina"><i id="st-fill"></i><span id="st-text">기력</span></div>
+      </div>
+
+      <div class="hud-right">
+        <div class="panel counters">
+          <div><b id="kill-count">0</b><span>처치</span></div>
+          <div class="sep"></div>
+          <div><b id="fps">60</b><span>FPS</span></div>
+        </div>
+        <div class="hud-buttons">
+          <button id="btn-change" class="btn ghost" type="button">동물 변경</button>
+          <button id="btn-help" class="btn ghost small" type="button">조작법</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="combo" class="combo" aria-hidden="true"><b id="combo-num">0</b><span>연격</span></div>
+    <div id="toast" class="toast" aria-live="polite"></div>
+
+    <div class="hud-bottom">
+      <div id="joystick" class="joystick" aria-label="이동 조이스틱">
+        <div class="ring"></div>
+        <div class="stick" id="stick"></div>
+      </div>
+
+      <div class="actions">
+        <button class="abtn sprint" id="btn-sprint" type="button">
+          <span class="ico">»</span><span class="label">질주</span>
+        </button>
+        <button class="abtn jump" id="btn-jump" type="button">
+          <span class="ico">▲</span><span class="label">점프</span>
+        </button>
+        <button class="abtn attack" id="btn-attack" type="button">
+          <span class="ico">✧</span><span class="label">공격</span><small>J</small>
+        </button>
+        <button class="abtn skill" id="btn-skill1" type="button">
+          <span class="ico" id="skill1-icon">📣</span><span class="label" id="skill1-label">포효</span><small>K</small><i class="cd"></i>
+        </button>
+        <button class="abtn skill" id="btn-skill2" type="button">
+          <span class="ico" id="skill2-icon">🌀</span><span class="label" id="skill2-label">도약</span><small>L</small><i class="cd"></i>
+        </button>
+      </div>
+    </div>
+
+    <div id="help" class="panel help hidden">
+      <h4>조작법</h4>
+      <ul>
+        <li><kbd>W A S D</kbd> / 방향키 <span>이동</span></li>
+        <li><kbd>Shift</kbd> <span>질주 (기력 소모)</span></li>
+        <li><kbd>Space</kbd> <span>점프</span></li>
+        <li><kbd>J</kbd> / 마우스 클릭 <span>기본 공격</span></li>
+        <li><kbd>K</kbd> <span>스킬 1</span> · <kbd>L</kbd> <span>스킬 2</span></li>
+        <li>마우스/화면 드래그 <span>시점 회전</span> · 휠 <span>줌</span></li>
+        <li><kbd>Esc</kbd> <span>일시정지 · 동물 변경</span></li>
+      </ul>
+      <p class="help-mobile">모바일: 왼쪽 조이스틱으로 이동, 오른쪽 버튼으로 행동. 화면을 드래그하면 시점이 돌아갑니다.</p>
+    </div>
+  </div>
+
+  <!-- ── 동물 선택 ─────────────────────────────────────── -->
+  <div id="select" class="overlay">
+    <div class="select-inner">
+      <p class="eyebrow">WILD THRONE</p>
+      <h1>야생의 왕좌</h1>
+      <p class="sub">동물을 선택하고 아레나에 스폰하세요. <br class="mobile-only" />각 동물은 고유한 공격과 스킬을 가집니다.</p>
+      <div id="cards" class="cards"></div>
+      <div class="select-foot">
+        <span><b>PC</b> WASD 이동 · Shift 질주 · Space 점프 · J 공격 · K/L 스킬</span>
+        <span><b>모바일</b> 조이스틱 + 오른쪽 버튼</span>
+      </div>
+    </div>
+  </div>
+
+  <div id="death" class="overlay death hidden">
+    <div class="death-inner">
+      <p class="eyebrow">DOWN</p>
+      <h2>쓰러졌습니다</h2>
+      <p id="death-sub">잠시 후 아레나 중앙에서 다시 일어납니다…</p>
+    </div>
+  </div>
+
+  <div id="loading" class="overlay loading">
+    <div class="loader">
+      <div class="paw">🐾</div>
+      <p>아레나를 준비하는 중…</p>
+      <div class="loadbar"><i></i></div>
+    </div>
+  </div>
+
+  <div id="fatal" class="overlay fatal hidden">
+    <div>
+      <h2>실행 중 문제가 발생했습니다</h2>
+      <pre id="fatal-log"></pre>
+      <button class="btn" type="button" onclick="location.reload()">다시 시도</button>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+  // 게임 로딩 실패를 화면에 그대로 보여준다 (조용히 죽지 않도록).
+  window.__errors = [];
+  const fatal = (msg) => {
+    const box = document.getElementById('fatal');
+    const log = document.getElementById('fatal-log');
+    if (!box || !log) return;
+    window.__errors.push(String(msg));
+    log.textContent = window.__errors.join('\n\n');
+    box.classList.remove('hidden');
+    document.getElementById('loading')?.classList.add('hidden');
+  };
+  window.addEventListener('error', (e) => fatal(e.message || e.error || 'unknown error'));
+  window.addEventListener('unhandledrejection', (e) => fatal(e.reason?.stack || e.reason?.message || e.reason || 'unhandled rejection'));
+  import('./src/main.js').catch((err) => fatal(err?.stack || err?.message || err));
+</script>
+</body>
+</html>
