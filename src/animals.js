@@ -1,8 +1,8 @@
 // 동물 모델 — 스윕/병합 조형 + 털·비늘 재질
-import THREE from './three.js';
-import { merge, sweep, track, unitSphere, unitCone, unitBox, unitCyl, meshOf, vertexMaterial, TAU, shade } from './sculpt.js';
-import { furMaterial, scaleMaterial, skinMaterial } from './textures.js';
-import { clamp, lerp } from './util.js';
+import THREE from './three.js?v=20261115a';
+import { merge, sweep, track, unitSphere, unitCone, unitBox, unitCyl, meshOf, vertexMaterial, TAU, shade } from './sculpt.js?v=20261115a';
+import { furMaterial, scaleMaterial, skinMaterial } from './textures.js?v=20261115a';
+import { clamp, lerp } from './util.js?v=20261115a';
 
 const V = (x = 0, y = 0, z = 0) => new THREE.Vector3(x, y, z);
 const W = (r = 1, g = r, b = r) => new THREE.Color(r, g, b);

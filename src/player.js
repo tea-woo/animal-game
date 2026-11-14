@@ -1,9 +1,9 @@
 // 플레이어 — 이동/질주/점프/공격/스킬 상태 머신과 동물별 전투 연출
-import THREE from './three.js';
-import { ANIMALS, buildAnimal } from './animals.js';
-import { Animator } from './animation.js';
-import { ARENA_RADIUS } from './world.js';
-import { clamp, damp, dampAngle, smoothstep, rand, TAU } from './util.js';
+import THREE from './three.js?v=20261115a';
+import { ANIMALS, buildAnimal } from './animals.js?v=20261115a';
+import { Animator } from './animation.js?v=20261115a';
+import { ARENA_RADIUS } from './world.js?v=20261115a';
+import { clamp, damp, dampAngle, smoothstep, rand, TAU } from './util.js?v=20261115a';
 
 const GRAVITY = 26;
 
