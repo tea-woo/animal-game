@@ -1,6 +1,6 @@
 // 적 — 멧돼지 무리 (순찰/추격/돌진/기절/부활)
 import THREE from './three.js';
-import { buildEnemy, collectMaterials } from './animals.js';
+import { buildEnemy, collectMaterials, BIOME_MOBS } from './animals.js';
 import { Animator } from './animation.js';
 import { ARENA_RADIUS } from './world.js';
 import { clamp, damp, dampAngle, rand, TAU, smoothstep } from './util.js';
@@ -15,8 +15,9 @@ function makeBarTexture() {
 }
 
 export class Boar {
-  constructor(manager, kind, pos) {
+  constructor(manager, kind, pos, biome) {
     this.manager = manager;
+    this.biome = biome || 'savanna';
     this.game = manager.game;
     this.kind = kind;
 
@@ -74,6 +75,15 @@ export class Boar {
 
   get position() {
     return this.root.position;
+  }
+
+  dispose() {
+    this.root.traverse((o) => {
+      if (o.isMesh && o.geometry && o.geometry.dispose) o.geometry.dispose();
+      if (o.isMesh && o.material && o.material.dispose) o.material.dispose();
+    });
+    if (this.barSprite && this.barSprite.material) this.barSprite.material.dispose();
+    if (this.bar && this.bar.tex) this.bar.tex.dispose();
   }
 
   drawBar(frac) {
@@ -407,14 +417,27 @@ export class EnemyManager {
     this.spawnWave();
   }
 
-  spawnWave() {
-    const spots = [
-      [-14, -10], [12, -14], [-20, 6], [18, 8], [4, -20], [-6, 18], [24, -4], [-24, -18],
-    ];
-    for (const [x, z] of spots) {
-      this.all.push(new Boar(this, 'boar', new THREE.Vector3(x, 0, z)));
+  // 지형을 바꾸면 그 지역 야생으로 교체한다 (4~6마리, 서로 떨어져서)
+  setBiome(biome) {
+    for (const b of this.all) {
+      this.game.scene.remove(b.root);
+      if (b.dispose) b.dispose();
     }
-    this.all.push(new Boar(this, 'alpha', new THREE.Vector3(0, 0, -26)));
+    this.all = [];
+    this.biome = biome;
+    const kinds = BIOME_MOBS[biome] || BIOME_MOBS.savanna;
+    const spots = [
+      [-15, -11], [13, -15], [-21, 7], [19, 11], [3, -21], [-9, 18],
+    ];
+    const hover = biome === 'ocean' ? 1.0 : 0;
+    kinds.forEach((kind, i) => {
+      const [x, z] = spots[i % spots.length];
+      this.all.push(new Boar(this, kind, new THREE.Vector3(x, hover, z), biome));
+    });
+  }
+
+  spawnWave() {
+    this.setBiome(this.biome || 'savanna');
   }
 
   update(dt, player) {

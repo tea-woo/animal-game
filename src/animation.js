@@ -40,6 +40,8 @@ export class Animator {
     this.headBase = rig.head ? rig.head.position.clone() : null;
     this.earBase = (rig.ears || []).map((e) => ({ z: e.rotation.z, x: e.rotation.x }));
     this.chestBaseScale = rig.chest ? rig.chest.scale.clone() : null;
+    this.trunkBase = (rig.trunk || []).map((g) => ({ x: g.rotation.x, y: g.rotation.y }));
+    this.tentacleBase = (rig.tentacles || []).map((chain) => chain.map((g) => ({ x: g.rotation.x, y: g.rotation.y, z: g.rotation.z })));
   }
 
   play(action) {
@@ -274,6 +276,31 @@ export class Animator {
         const base = i === 0 ? 1 : 0.75 - i * 0.06;
         g.rotation.y = c.tailY * base * Math.sin(this.t * 2.4 - i * 0.5) * 0.9;
         g.rotation.x = (c.tailX - 0.3) * base + Math.sin(this.t * 3.1 - i * 0.5) * 0.03;
+      }
+    }
+
+    // 코끼리 코 — 좌우로 흔들리며 말린다
+    if (rig.trunk) {
+      const n = rig.trunk.length;
+      for (let i = 0; i < n; i++) {
+        const b = this.trunkBase[i];
+        const w = i / Math.max(1, n - 1);
+        rig.trunk[i].rotation.x = b.x + Math.sin(this.t * 1.3 - i * 0.55) * 0.07 * (0.4 + w) - 0.03 * w;
+        rig.trunk[i].rotation.y = b.y + Math.sin(this.t * 0.8 - i * 0.7) * 0.12 * (0.3 + w);
+      }
+    }
+
+    // 문어 다리 — 파도처럼 일렁인다
+    if (rig.tentacles) {
+      for (let t = 0; t < rig.tentacles.length; t++) {
+        const chain = rig.tentacles[t];
+        for (let i = 0; i < chain.length; i++) {
+          const b = this.tentacleBase[t] && this.tentacleBase[t][i];
+          if (!b) continue;
+          const ph = this.t * 1.5 + t * 0.8 + i * 0.55;
+          chain[i].rotation.x = b.x + Math.sin(ph) * 0.16;
+          chain[i].rotation.z = b.z + Math.cos(ph * 0.8) * 0.12;
+        }
       }
     }
 

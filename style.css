@@ -732,3 +732,136 @@ kbd {
 @media (prefers-reduced-motion: reduce) {
   * { animation-duration: 0.001s !important; transition-duration: 0.001s !important; }
 }
+
+/* ── 지도 선택 (메뉴) ─────────────────────────────────── */
+.map-picker {
+  margin: 0 auto 16px;
+  width: 100%;
+  text-align: left;
+}
+.map-picker-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin: 0 2px 8px;
+}
+.map-picker-title {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 2px;
+  color: rgba(232, 176, 75, 0.9);
+}
+.map-picker-hint { font-size: 10.5px; color: var(--muted); }
+
+.map-cards {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+.map-card {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  cursor: pointer;
+  color: var(--text);
+  background: linear-gradient(170deg, rgba(30, 35, 44, 0.8), rgba(12, 15, 20, 0.9));
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  transition: transform 0.16s, border-color 0.2s, box-shadow 0.2s, background 0.2s;
+  font-family: inherit;
+  text-align: left;
+}
+.map-card:hover { transform: translateY(-2px); border-color: rgba(255, 255, 255, 0.2); }
+.map-card .map-emoji { font-size: 22px; line-height: 1; }
+.map-card strong { display: block; font-size: 13.5px; font-weight: 800; letter-spacing: -0.2px; }
+.map-card small { display: block; font-size: 10px; color: var(--muted); margin-top: 2px; }
+.map-card.on {
+  border-color: var(--map-accent, var(--accent));
+  background: linear-gradient(170deg, color-mix(in srgb, var(--map-accent, var(--accent)) 20%, rgba(20, 24, 30, 0.9)), rgba(12, 15, 20, 0.94));
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--map-accent, var(--accent)) 40%, transparent), 0 8px 26px color-mix(in srgb, var(--map-accent, var(--accent)) 18%, transparent);
+}
+.map-card.on::after {
+  content: "✓";
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  font-size: 11px;
+  font-weight: 900;
+  color: var(--map-accent, var(--accent));
+}
+
+.mapmenu {
+  background: radial-gradient(80% 70% at 50% 20%, rgba(20, 30, 40, 0.72), rgba(4, 6, 9, 0.9));
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  z-index: 25;
+}
+.mapmenu-inner { width: min(780px, 100%); text-align: center; }
+.mapmenu-inner h2 {
+  margin: 6px 0 4px;
+  font-size: clamp(24px, 5vw, 34px);
+  font-weight: 900;
+  letter-spacing: -1px;
+}
+.mapmenu-sub { margin: 0 0 18px; font-size: 12px; color: var(--muted); }
+.map-cards.wide { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.map-cards.wide .map-card { padding: 14px 16px; }
+.mapmenu .btn { margin-top: 18px; }
+
+/* 동물 카드 지형 태그 */
+.card-biomes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  position: relative;
+  z-index: 1;
+}
+.biome-tag {
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.2px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  color: rgba(255, 255, 255, 0.82);
+  background: rgba(255, 255, 255, 0.09);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+.biome-tag.rec {
+  color: #10161c;
+  background: var(--accent);
+  border-color: transparent;
+}
+
+/* 동물 그룹 머리 */
+.animal-group { margin-top: 16px; text-align: left; }
+.animal-group-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 2px 8px;
+}
+.animal-group-head b {
+  font-size: 12px;
+  letter-spacing: 1.4px;
+  color: rgba(235, 240, 248, 0.86);
+}
+.animal-group-head span { font-size: 10.5px; color: var(--muted); }
+.animal-group-head .bar {
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0.14), rgba(255, 255, 255, 0));
+}
+
+@media (max-width: 1080px) {
+  .map-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 620px) {
+  .map-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+  .map-card { padding: 8px 9px; gap: 7px; }
+  .map-card .map-emoji { font-size: 18px; }
+  .map-card strong { font-size: 12px; }
+  .map-card small { display: none; }
+  .map-cards.wide { grid-template-columns: 1fr; }
+}

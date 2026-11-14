@@ -44,6 +44,7 @@
           <div><b id="fps">60</b><span>FPS</span></div>
         </div>
         <div class="hud-buttons">
+          <button id="btn-map" class="btn ghost" type="button">🗺 사바나</button>
           <button id="btn-change" class="btn ghost" type="button">동물 변경</button>
           <button id="btn-help" class="btn ghost small" type="button">조작법</button>
         </div>
@@ -98,12 +99,31 @@
     <div class="select-inner">
       <p class="eyebrow">WILD THRONE</p>
       <h1>야생의 왕좌</h1>
-      <p class="sub">동물을 선택하고 아레나에 스폰하세요. <br class="mobile-only" />각 동물은 고유한 공격과 스킬을 가집니다.</p>
+      <p class="sub">지형을 고르고 동물을 선택하세요. <br class="mobile-only" />어떤 동물이든 어느 지형에서나 싸울 수 있습니다.</p>
+
+      <div class="map-picker">
+        <div class="map-picker-head">
+          <span class="map-picker-title">지도 선택</span>
+          <span class="map-picker-hint" id="map-hint">원하는 지형을 고르세요</span>
+        </div>
+        <div id="map-cards" class="map-cards"></div>
+      </div>
+
       <div id="cards" class="cards"></div>
       <div class="select-foot">
         <span><b>PC</b> WASD 이동 · Shift 질주 · Space 점프 · J 공격 · K/L 스킬</span>
         <span><b>모바일</b> 조이스틱 + 오른쪽 버튼</span>
       </div>
+    </div>
+  </div>
+
+  <div id="mapmenu" class="overlay mapmenu hidden">
+    <div class="mapmenu-inner">
+      <p class="eyebrow">TERRAIN</p>
+      <h2>지도 변경</h2>
+      <p class="mapmenu-sub">지금 동물은 그대로, 무대만 바뀝니다.</p>
+      <div id="map-cards-game" class="map-cards wide"></div>
+      <button id="btn-map-close" class="btn ghost" type="button">닫기</button>
     </div>
   </div>
 

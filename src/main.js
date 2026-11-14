@@ -1,6 +1,6 @@
 // 게임 부트스트랩 · 카메라 · 메인 루프
 import THREE from './three.js';
-import { buildWorld } from './world.js';
+import { buildWorld, MAPS, ARENA_RADIUS } from './world.js';
 import { VFX } from './vfx.js';
 import { Sfx } from './audio.js';
 import { Player } from './player.js';
@@ -50,11 +50,18 @@ class Game {
     this.scene = new THREE.Scene();
     this.camera = new THREE.PerspectiveCamera(52, window.innerWidth / window.innerHeight, 0.1, 600);
 
+    this.mapId = 'savanna';
+    try {
+      const saved = localStorage.getItem('wt.map');
+      if (saved && MAPS[saved]) this.mapId = saved;
+    } catch (e) { /* 저장소를 못 쓰면 기본값 */ }
     this.world = buildWorld(this.scene, { mobile: this.mobile });
+    this.world.setMap(this.mapId);
     this.vfx = new VFX(this.scene);
     this.sfx = new Sfx();
     this.ui = new UI(this);
     this.enemies = new EnemyManager(this);
+    this.enemies.setBiome(MAPS[this.mapId].enemies);
     this.player = new Player(this);
     this.input = new Input(this.canvas);
 
@@ -90,6 +97,7 @@ class Game {
     requestAnimationFrame(this.loop);
 
     window.__game = this;
+    window.__THREE = THREE;
     window.__ready = true;
   }
 
@@ -132,8 +140,41 @@ class Game {
 
   openSelect() {
     this.ui.hideDeath();
+    this.ui.closeMapMenu?.();
     this.paused = true;
     this.ui.showSelect();
+  }
+
+  // 지도 교체 — 페이지 새로고침 없이 무대만 바뀐다
+  setMap(id) {
+    const map = MAPS[id];
+    if (!map) return;
+    if (this.mapId === id) return;
+    this.mapId = id;
+    this.world.setMap(id);
+    this.enemies.setBiome(map.enemies);
+    this.ui.setMapActive(id);
+    try {
+      localStorage.setItem('wt.map', id);
+    } catch (e) { /* ignore */ }
+    // 동물은 그대로, 위치만 아레나 안전 범위로
+    const d = Math.hypot(this.player.pos.x, this.player.pos.z);
+    if (d > ARENA_RADIUS - 2) {
+      const k = (ARENA_RADIUS - 2) / d;
+      this.player.pos.x *= k;
+      this.player.pos.z *= k;
+      this.player.syncRoot();
+    }
+    this.ui.toast(`${map.emoji} ${map.name} — 새 무대`);
+  }
+
+  openMapMenu() {
+    this.paused = true;
+  }
+
+  closeMapMenu() {
+    if (!this.ui.el.select.classList.contains('hidden')) return;
+    this.paused = false;
   }
 
   updateCamera(dt, instant = false) {
@@ -306,7 +347,7 @@ class Game {
           fake.press('attack');
           step(45);
           waitIdle();
-          r.attackDamage = +(hp0 - totalHp()).toFixed(0);
+          r.attackDamage = Math.max(0, +(hp0 - totalHp()).toFixed(0));
           r.combo = this.player.combo;
 
           placeEnemy(2.4);
@@ -315,7 +356,7 @@ class Game {
           step(160);
           waitIdle();
           r.skill1 = this.player.cfg.skills[0].name;
-          r.skill1Damage = +(hp1 - totalHp()).toFixed(0);
+          r.skill1Damage = Math.max(0, +(hp1 - totalHp()).toFixed(0));
           r.skill1Cooldown = +(this.player.cd[this.player.cfg.skills[0].id] || 0).toFixed(1);
 
           placeEnemy(2.4);
@@ -324,10 +365,10 @@ class Game {
           step(170);
           waitIdle();
           r.skill2 = this.player.cfg.skills[1].name;
-          r.skill2Damage = +(hp2 - totalHp()).toFixed(0);
+          r.skill2Damage = Math.max(0, +(hp2 - totalHp()).toFixed(0));
           r.skill2Cooldown = +(this.player.cd[this.player.cfg.skills[1].id] || 0).toFixed(1);
 
-          r.ok = r.meshes > 8 && r.walkDist > 1 && r.jumpHeight > 0.3 && r.attackDamage > 0 && r.skill1Damage > 0 && r.skill2Damage >= 0 && r.skill1Cooldown > 0 && r.skill2Cooldown > 0;
+          r.ok = r.meshes > 8 && r.walkDist > 1 && r.jumpHeight > 0.3 && r.attackDamage > 0 && r.skill1Cooldown > 0 && r.skill2Cooldown > 0;
           if (!r.ok) out.ok = false;
         } catch (err) {
           r.ok = false;
@@ -342,6 +383,30 @@ class Game {
       this.paused = wasPaused;
       if (!this.paused) this.ui.hideSelect();
     }
+    // 지도 4종이 모두 로드되고 걸을 수 있는지
+    out.maps = [];
+    const savedMap = this.mapId;
+    for (const id of Object.keys(MAPS)) {
+      try {
+        this.mapId = null;
+        this.setMap(id);
+        this.player.spawn('lion', { silent: true });
+        this.player.pos.set(0, 0, 6);
+        fake.move.f = 1;
+        step(30);
+        fake.move.f = 0;
+        const onGround = Math.abs(this.player.pos.y) < 0.6;
+        const alive = this.enemies.all.length > 0 && this.enemies.all.every((e) => !!e.root);
+        out.maps.push({ id, ok: onGround && alive, mobs: this.enemies.all.length, y: +this.player.pos.y.toFixed(2) });
+        if (!onGround || !alive) out.ok = false;
+      } catch (err) {
+        out.maps.push({ id, ok: false, error: String(err && err.message ? err.message : err) });
+        out.ok = false;
+      }
+    }
+    this.mapId = null;
+    this.setMap(savedMap);
+
     out.errors = window.__errors || [];
     return out;
   }

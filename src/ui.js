@@ -1,6 +1,9 @@
-// UI — 동물 선택 카드, HUD, 토스트
+// UI — 지도 선택, 동물 카드, HUD, 토스트
 import { ANIMALS } from './animals.js';
+import { MAPS } from './world.js';
 import { clamp } from './util.js';
+
+const BIOME_ORDER = ['savanna', 'ocean', 'forest', 'snow'];
 
 export class UI {
   constructor(game) {
@@ -9,6 +12,12 @@ export class UI {
       hud: document.getElementById('hud'),
       select: document.getElementById('select'),
       cards: document.getElementById('cards'),
+      mapCards: document.getElementById('map-cards'),
+      mapCardsGame: document.getElementById('map-cards-game'),
+      mapHint: document.getElementById('map-hint'),
+      mapMenu: document.getElementById('mapmenu'),
+      btnMap: document.getElementById('btn-map'),
+      btnMapClose: document.getElementById('btn-map-close'),
       loading: document.getElementById('loading'),
       death: document.getElementById('death'),
       toast: document.getElementById('toast'),
@@ -37,47 +46,123 @@ export class UI {
     };
     this.lastCombo = 0;
     this.toastUntil = 0;
+    this.buildMaps();
     this.buildCards();
     this.bind();
   }
 
+  // ── 지도 ────────────────────────────────────────────────
+  mapCardHtml(m, active) {
+    return `
+      <button type="button" class="map-card${active ? ' on' : ''}" data-map="${m.id}" style="--map-accent:${m.accent}">
+        <span class="map-emoji">${m.emoji}</span>
+        <span>
+          <strong>${m.name}</strong>
+          <small>${m.tagline}</small>
+        </span>
+      </button>`;
+  }
+
+  buildMaps() {
+    const current = this.game.mapId || 'savanna';
+    const ids = Object.keys(MAPS);
+    for (const box of [this.el.mapCards, this.el.mapCardsGame]) {
+      if (!box) continue;
+      box.innerHTML = ids.map((id) => this.mapCardHtml(MAPS[id], id === current)).join('');
+      box.addEventListener('click', (e) => {
+        const btn = e.target.closest('[data-map]');
+        if (!btn) return;
+        this.game.sfx.ui();
+        this.game.setMap(btn.dataset.map);
+        if (this.el.mapMenu && !this.el.mapMenu.classList.contains('hidden')) this.closeMapMenu();
+      });
+    }
+    this.setMapActive(current);
+  }
+
+  setMapActive(id) {
+    const m = MAPS[id] || MAPS.savanna;
+    document.querySelectorAll('.map-card').forEach((el) => el.classList.toggle('on', el.dataset.map === id));
+    if (this.el.btnMap) this.el.btnMap.textContent = `🗺 ${m.name}`;
+    if (this.el.mapHint) this.el.mapHint.textContent = `지금 무대 · ${m.name}`;
+  }
+
+  openMapMenu() {
+    if (!this.el.mapMenu) return;
+    this.el.mapMenu.classList.remove('hidden');
+    this.game.openMapMenu();
+  }
+
+  closeMapMenu() {
+    this.el.mapMenu?.classList.add('hidden');
+    this.game.closeMapMenu();
+  }
+
+  // ── 동물 카드 ───────────────────────────────────────────
   buildCards() {
     const wrap = this.el.cards;
     wrap.innerHTML = '';
-    for (const key of Object.keys(ANIMALS)) {
-      const a = ANIMALS[key];
-      const card = document.createElement('button');
-      card.type = 'button';
-      card.className = 'card';
-      card.dataset.animal = key;
-      card.style.setProperty('--accent', a.accent);
-      card.innerHTML = `
-        <div class="card-head">
-          <span class="card-emoji">${a.emoji}</span>
-          <div>
-            <strong>${a.name}</strong>
-            <span class="card-tag">${a.tagline}</span>
-          </div>
-        </div>
-        <p class="card-desc">${a.desc}</p>
-        <div class="stats">
-          ${this.statRow('공격', a.stats.power)}
-          ${this.statRow('속도', a.stats.speed)}
-          ${this.statRow('체력', a.stats.tough)}
-        </div>
-        <div class="skill-lines">
-          <div class="skill-line"><b>J</b><span>${a.attack.name}</span></div>
-          <div class="skill-line"><b>K</b><span>${a.skills[0].name}<em>${a.skills[0].desc}</em></span></div>
-          <div class="skill-line"><b>L</b><span>${a.skills[1].name}<em>${a.skills[1].desc}</em></span></div>
-        </div>
-        <span class="card-cta">스폰하기 <i>→</i></span>
-      `;
-      card.addEventListener('click', () => {
-        this.game.sfx.ui();
-        this.game.selectAnimal(key);
+    for (const biomeId of BIOME_ORDER) {
+      const entries = Object.entries(ANIMALS).filter(([, a]) => (a.biomes || [])[0] === biomeId);
+      if (!entries.length) continue;
+      const group = document.createElement('div');
+      group.className = 'animal-group';
+      const head = document.createElement('div');
+      head.className = 'animal-group-head';
+      head.innerHTML = `<b>${MAPS[biomeId].emoji} ${MAPS[biomeId].name}</b><span>이 지형에 어울리는 동물</span><i class="bar"></i>`;
+      group.appendChild(head);
+      const grid = document.createElement('div');
+      grid.className = 'cards';
+      for (const [key, a] of entries) grid.appendChild(this.makeCard(key, a));
+      group.appendChild(grid);
+      wrap.appendChild(group);
+      // 카드 등장 애니메이션 딜레이
+      grid.querySelectorAll('.card').forEach((c, i) => {
+        c.style.animationDelay = `${Math.min(0.4, i * 0.05)}s`;
       });
-      wrap.appendChild(card);
     }
+  }
+
+  makeCard(key, a) {
+    const card = document.createElement('button');
+    card.type = 'button';
+    card.className = 'card';
+    card.dataset.animal = key;
+    card.style.setProperty('--accent', a.accent);
+    const tags = (a.biomes || [])
+      .map((b, i) => {
+        const m = MAPS[b];
+        if (!m) return '';
+        return `<span class="biome-tag${i === 0 ? ' rec' : ''}">${m.emoji} ${m.name}</span>`;
+      })
+      .join('');
+    card.innerHTML = `
+      <div class="card-head">
+        <span class="card-emoji">${a.emoji}</span>
+        <div>
+          <strong>${a.name}</strong>
+          <span class="card-tag">${a.tagline}</span>
+        </div>
+      </div>
+      <div class="card-biomes">${tags}</div>
+      <p class="card-desc">${a.desc}</p>
+      <div class="stats">
+        ${this.statRow('공격', a.stats.power)}
+        ${this.statRow('속도', a.stats.speed)}
+        ${this.statRow('체력', a.stats.tough)}
+      </div>
+      <div class="skill-lines">
+        <div class="skill-line"><b>J</b><span>${a.attack.name}</span></div>
+        <div class="skill-line"><b>K</b><span>${a.skills[0].name}<em>${a.skills[0].desc}</em></span></div>
+        <div class="skill-line"><b>L</b><span>${a.skills[1].name}<em>${a.skills[1].desc}</em></span></div>
+      </div>
+      <span class="card-cta">스폰하기 <i>→</i></span>
+    `;
+    card.addEventListener('click', () => {
+      this.game.sfx.ui();
+      this.game.selectAnimal(key);
+    });
+    return card;
   }
 
   statRow(label, value) {
@@ -95,6 +180,15 @@ export class UI {
     this.el.btnHelp?.addEventListener('click', () => {
       this.el.help.classList.toggle('hidden');
       this.game.sfx.ui();
+    });
+    this.el.btnMap?.addEventListener('click', () => {
+      if (this.game.player.dead) return;
+      this.game.sfx.ui();
+      this.openMapMenu();
+    });
+    this.el.btnMapClose?.addEventListener('click', () => {
+      this.game.sfx.ui();
+      this.closeMapMenu();
     });
   }
 

@@ -445,6 +445,16 @@ export class Player {
           d.sway = 0.36 * coilUp + 0.2 * strikeT2;
           d.pitch = 0.12 * strikeT2;
           d.tongue = 0.9 * strikeT2;
+        } else {
+          // 그 외 동물 — 공통 휘두르기
+          d.twist = -0.36 * wind + 0.55 * strikeT;
+          d.pitch = -0.1 * wind + 0.16 * strikeT;
+          d.rf = -0.9 * wind + 0.7 * strikeT;
+          d.rfk = 1.1 * wind;
+          d.lf = 0.12 * wind;
+          d.jaw = 0.45 * wind + 0.15 * strikeT;
+          d.headPitch = -0.16 * wind + 0.2 * strikeT;
+          d.bodyY = 0.04 * wind - 0.05 * strikeT;
         }
       },
     });
@@ -471,6 +481,10 @@ export class Player {
     } else if (id === 'anaconda') {
       this.game.vfx.slash(p, this.yaw, { color: 0xa8e07a, radius: range * 0.4, arc: 0.95, dur: 0.18, plane: 'vertical', y: 0.9, thickness: 0.18 });
       this.game.vfx.burst(new THREE.Vector3(p.x, p.y + 0.9, p.z), { count: 7, color: 0xc8f09a, speed: 6, size: 0.4, life: 0.35, gravity: 5 });
+    } else {
+      const accent = new THREE.Color(this.cfg.accent || '#ffd27a').getHex();
+      this.game.vfx.slash(p, this.yaw, { color: accent, radius: range * 0.48, arc: Math.max(1.4, (this.cfg.attack.arc || 2)), dur: 0.24, plane: 'vertical', tilt: 0.2, y: 0.95, thickness: 0.26 });
+      this.game.vfx.burst(new THREE.Vector3(p.x, p.y + 1.0, p.z), { count: 9, color: accent, speed: 6.5, size: 0.42, life: 0.34, gravity: 4 });
     }
   }
 
@@ -494,7 +508,7 @@ export class Player {
       charge: () => this.skillCharge(),
       constrict: () => this.skillConstrict(),
       tailslam: () => this.skillTailSlam(),
-    }[skill.id];
+    }[skill.impl || skill.id];
     if (!fn) return;
     const started = fn();
     if (started !== false) {
