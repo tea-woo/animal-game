@@ -233,8 +233,8 @@ export function buildCar(spec) {
   root.add(body);
 
   const paint = new THREE.MeshPhysicalMaterial({
-    color: spec.color, metalness: 0.42, roughness: 0.3,
-    clearcoat: 1.0, clearcoatRoughness: 0.07, envMapIntensity: 0.8,
+    color: spec.color, metalness: 0.34, roughness: 0.32,
+    clearcoat: 1.0, clearcoatRoughness: 0.06, envMapIntensity: 0.85,
   });
   const dark = new THREE.MeshStandardMaterial({ color: 0x121419, roughness: 0.5, metalness: 0.3 });
   const trim = new THREE.MeshStandardMaterial({ color: 0x24282f, roughness: 0.62, metalness: 0.25 });

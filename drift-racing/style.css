@@ -76,7 +76,7 @@ html, body {
 
 #menu.overlay {
   background:
-    linear-gradient(180deg, rgba(5, 10, 17, 0.86) 0%, rgba(5, 10, 17, 0.72) 34%, rgba(5, 10, 17, 0.16) 62%, rgba(5, 10, 17, 0.62) 100%);
+    linear-gradient(180deg, rgba(5, 10, 17, 0.74) 0%, rgba(5, 10, 17, 0.56) 34%, rgba(5, 10, 17, 0.1) 62%, rgba(5, 10, 17, 0.52) 100%);
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
 }

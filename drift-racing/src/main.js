@@ -134,7 +134,16 @@ class Game {
     this.sunDir = new THREE.Vector3(-0.60, 0.30, 0.74).normalize();
     const sky = skyTexture(this.sunDir);
     this.scene.background = sky;
-    this.scene.environment = sky;
+    // 반사용 환경맵은 PMREM 으로 전처리 — 도장·유리·크롬의 하이라이트가 부드럽고 자연스러워진다
+    try {
+      const pmrem = new THREE.PMREMGenerator(this.renderer);
+      pmrem.compileEquirectangularShader();
+      this.envRT = pmrem.fromEquirectangular(sky);
+      this.scene.environment = this.envRT.texture;
+      pmrem.dispose();
+    } catch (e) {
+      this.scene.environment = sky;
+    }
     this.scene.fog = new THREE.FogExp2(0xdfe6ea, 0.0024);
 
     this.hemi = new THREE.HemisphereLight(0xcfe4ff, 0xb59a72, 1.0);

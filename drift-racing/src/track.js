@@ -124,7 +124,8 @@ export function buildTrack(scene, courseId = 'circuit') {
     const b = Math.sin(s * 0.083 + 0.7) * 0.5
       + Math.sin(s * 0.031 + 2.2) * 0.36
       + Math.sin(s * 0.197 + 0.3) * 0.14;
-    return 0.02 + b * spec.bumpAmp * edge;
+    // 노면은 지면보다 살짝 높은 흙 둑 위에 놓인다 (굴곡이 지면을 뚫지 않게)
+    return 0.22 + b * spec.bumpAmp * edge;
   }
 
   /* ── 리본 지오메트리 헬퍼 ─────────────────────────────── */
