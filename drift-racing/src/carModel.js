@@ -1,5 +1,5 @@
 // 절차적 3D 차량 모델 — 로프트 차체, 유리 캐빈, 조향·회전 바퀴, 라이트
-import THREE from './three.js?v=20261115c';
+import THREE from './three.js?v=20261115d';
 
 export const CARS = [
   {

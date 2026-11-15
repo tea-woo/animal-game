@@ -1,14 +1,14 @@
 // DRIFT LEGEND — 부트스트랩·레이스 진행·카메라·메인 루프
-import THREE from './three.js?v=20261115c';
-import { buildTrack } from './track.js?v=20261115c';
-import { CARS, buildCar } from './carModel.js?v=20261115c';
-import { Car } from './car.js?v=20261115c';
-import { AICar } from './ai.js?v=20261115c';
-import { Effects, NitroFlame } from './vfx.js?v=20261115c';
-import { Hud } from './hud.js?v=20261115c';
-import { Input } from './input.js?v=20261115c';
-import { Sfx } from './audio.js?v=20261115c';
-import { clamp, lerp, damp, formatTime, rand } from './util.js?v=20261115c';
+import THREE from './three.js?v=20261115d';
+import { buildTrack } from './track.js?v=20261115d';
+import { CARS, buildCar } from './carModel.js?v=20261115d';
+import { Car } from './car.js?v=20261115d';
+import { AICar } from './ai.js?v=20261115d';
+import { Effects, NitroFlame } from './vfx.js?v=20261115d';
+import { Hud } from './hud.js?v=20261115d';
+import { Input } from './input.js?v=20261115d';
+import { Sfx } from './audio.js?v=20261115d';
+import { clamp, lerp, damp, formatTime, rand } from './util.js?v=20261115d';
 
 const TOTAL_LAPS = 3;
 const GRID = [
@@ -548,18 +548,26 @@ class Game {
         // 접근 속도에 비례한 반발 (충돌음·스파크·흔들림)
         const rvx = B.vel.x - A.vel.x, rvz = B.vel.z - A.vel.z;
         const vn = rvx * best.nx + rvz * best.nz;
-        if (vn < 0) {
-          const e = 0.45;
-          const jimp = -(1 + e) * vn * 0.5;
+        if (vn < -0.35) {
+          const impact = -vn;
+          // 반발 계수를 높이고 양쪽 모두에 뜨겁게 튕겨나는 넉백 임펄스를 준다.
+          //  (플레이어는 applyImpulse 에서 '그립에 먹히지 않는' 넉백 성분까지 받는다)
+          const e = 0.78;
+          const jimp = clamp((1 + e) * impact * 0.5, 0, 14);
           if (A.applyImpulse) A.applyImpulse(-best.nx * jimp, -best.nz * jimp);
           else { A.vel.x -= best.nx * jimp; A.vel.z -= best.nz * jimp; }
           if (B.applyImpulse) B.applyImpulse(best.nx * jimp, best.nz * jimp);
           else { B.vel.x += best.nx * jimp; B.vel.z += best.nz * jimp; }
-          const impact = -vn;
+          // 충돌 직후 위치도 살짝 벌려 — '붙어서 밀기'가 아니라 '튕김'으로 보이게
+          const pop = Math.min(0.6, impact * 0.05);
+          A.pos.x -= best.nx * pop; A.pos.z -= best.nz * pop;
+          B.pos.x += best.nx * pop; B.pos.z += best.nz * pop;
+          if (A.shove) A.shove(-best.nx * pop, -best.nz * pop);
+          if (B.shove) B.shove(best.nx * pop, best.nz * pop);
           if (impact > 1.4) {
             this.impacts++;
-            this.effects.crashSpark(best.x, 0.55, best.z, Math.min(3, impact * 0.16));
-            this.shake = Math.max(this.shake, Math.min(0.9, 0.16 + impact * 0.04));
+            this.effects.crashSpark(best.x, 0.55, best.z, Math.min(3.4, impact * 0.18));
+            this.shake = Math.max(this.shake, Math.min(1.05, 0.18 + impact * 0.05));
             if (impact > 2.8 && !this.carCrashLock) {
               this.sfx.crash();
               this.carCrashLock = true;
@@ -596,13 +604,18 @@ class Game {
     const car = this.player;
     const fwd = { x: Math.sin(car.yaw), z: Math.cos(car.yaw) };
     const speed = Math.hypot(car.vel.x, car.vel.z);
-    let dir = { x: fwd.x, z: fwd.z };
     const portrait = this.camera.aspect < 1;
-    if (speed > 4) {
+    // 주행 중에는 카메라가 '차 머리'가 아니라 '실제 진행 방향(속도 벡터)'을 축으로 따라간다.
+    //  차 머리를 100% 따라가면 코너를 돌 때 카메라가 차와 함께 제자리에서 돌아
+    //  화면상 차가 옆으로 가지 않고 팽이처럼 회전하는 것처럼 보인다.
+    let dir = { x: fwd.x, z: fwd.z };
+    let travel = null;
+    if (speed > 4 && car.speed > 1) {          // 후진 중에는 차 머리 기준 유지
       const vx = car.vel.x / speed, vz = car.vel.z / speed;
-      const blend = car.drifting ? (portrait ? 0.2 : 0.3) : 0.18;
-      dir.x = lerp(fwd.x, vx, blend);
-      dir.z = lerp(fwd.z, vz, blend);
+      travel = { x: vx, z: vz };
+      const w = car.drifting ? (portrait ? 0.8 : 0.84) : 0.65;
+      dir.x = lerp(fwd.x, vx, w);
+      dir.z = lerp(fwd.z, vz, w);
       const l = Math.hypot(dir.x, dir.z) || 1;
       dir.x /= l; dir.z /= l;
     }
@@ -617,11 +630,17 @@ class Game {
     const k = 1 - Math.exp(-7.5 * dt);
     this.camPos.lerp(desired, k);
 
+    // 시선도 진행 방향 위주 + 차 머리 일부 — 차체가 화면에서 비스듬히 흐른다
     const aheadLen = car.drifting ? (portrait ? 5.6 + speed * 0.05 : 7 + speed * 0.09) : 7 + speed * 0.09;
+    const lw = travel ? (car.drifting ? 0.7 : 0.5) : 0;
+    const lookDir = travel
+      ? { x: lerp(fwd.x, travel.x, lw), z: lerp(fwd.z, travel.z, lw) }
+      : fwd;
+    const ll = Math.hypot(lookDir.x, lookDir.z) || 1;
     const lookAt = new THREE.Vector3(
-      car.pos.x + fwd.x * aheadLen,
+      car.pos.x + (lookDir.x / ll) * aheadLen,
       1.15,
-      car.pos.z + fwd.z * aheadLen
+      car.pos.z + (lookDir.z / ll) * aheadLen
     );
     this.camLook.lerp(lookAt, 1 - Math.exp(-(car.drifting ? 13 : 9) * dt));
 

@@ -1,7 +1,7 @@
 // AI 라이벌 — 레이싱 라인 추종, 코너 속도 계산, 차선 회피·추월
-import THREE from './three.js?v=20261115c';
-import { buildCar, updateCarVisual, applyBodyAttitude } from './carModel.js?v=20261115c';
-import { clamp, damp, rand } from './util.js?v=20261115c';
+import THREE from './three.js?v=20261115d';
+import { buildCar, updateCarVisual, applyBodyAttitude } from './carModel.js?v=20261115d';
+import { clamp, damp, rand } from './util.js?v=20261115d';
 
 export class AICar {
   constructor(spec, track, { skill = 1, startS = 0, lane = 0, lapIndex = 0 } = {}) {
@@ -61,13 +61,14 @@ export class AICar {
     this.placeOnTrack();
   }
 
-  /** 다른 차량과 접촉 — 밀림 + 속도 손실 */
+  /** 다른 차량과 접촉 — 밀림 + 속도 손실 (넉백) */
   applyImpulse(vx, vz) {
-    this.offVel.x += vx;
-    this.offVel.z += vz;
+    // 차체가 실제로 확 밀려나도록 오프셋 속도에 강하게 적재
+    this.offVel.x += vx * 1.05;
+    this.offVel.z += vz * 1.05;
     const j = Math.hypot(vx, vz);
-    this.speed = Math.max(0, this.speed - j * 0.6);
-    this.bumpT = Math.max(this.bumpT, 0.5);
+    this.speed = Math.max(0, this.speed - j * 0.55);
+    this.bumpT = Math.max(this.bumpT, 0.8);
   }
 
   /** 위치 보정(파고든 만큼 즉시 밀어내기) */
@@ -140,11 +141,11 @@ export class AICar {
       const dv = Math.exp(-4.6 * dt);
       this.offVel.x *= dv;
       this.offVel.z *= dv;
-      const back = Math.exp(-2.0 * dt);
+      const back = Math.exp(-1.6 * dt);
       this.off.x *= back;
       this.off.z *= back;
       const m = Math.hypot(this.off.x, this.off.z);
-      if (m > 3.4) { this.off.x *= 3.4 / m; this.off.z *= 3.4 / m; }
+      if (m > 4.6) { this.off.x *= 4.6 / m; this.off.z *= 4.6 / m; }
       if (m < 0.015 && Math.hypot(this.offVel.x, this.offVel.z) < 0.04) {
         this.off.x = 0; this.off.z = 0; this.offVel.x = 0; this.offVel.z = 0;
       }

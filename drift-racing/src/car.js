@@ -5,9 +5,9 @@
 //   left(yaw) = (cos yaw, -sin yaw) … 차의 왼쪽 (모델 로컬 +X)
 //   input.steer = +1 → 오른쪽(우회전), -1 → 왼쪽(좌회전)
 //   yaw 를 증가시키면 정면이 left 쪽으로 돌므로, 우회전은 yawRate < 0 이다.
-import THREE from './three.js?v=20261115c';
-import { buildCar, updateCarVisual, applyBodyAttitude } from './carModel.js?v=20261115c';
-import { clamp, damp, TAU } from './util.js?v=20261115c';
+import THREE from './three.js?v=20261115d';
+import { buildCar, updateCarVisual, applyBodyAttitude } from './carModel.js?v=20261115d';
+import { clamp, damp, TAU } from './util.js?v=20261115d';
 
 const WHEELBASE = 2.7;
 const REVERSE_MAX = 12.5;
@@ -47,6 +47,10 @@ export class Car {
     this.pitch = 0;
     this.accelLong = 0;
     this.wallHit = 0;
+    // 차량끼리 충돌 넉백 — 그립 감쇠에 먹히지 않는 추가 속도(짧게 유지)
+    this.knock = { x: 0, z: 0 };
+    this.knockT = 0;
+    this.yawKick = 0;
     // 기어: DRIFT 홀드로 정지 후 후진
     this.reversing = false;
     this.driftHold = 0;
@@ -81,6 +85,10 @@ export class Car {
     this.reverseLock = 0;
     this.impact = 0;
     this.hitFlash = 0;
+    this.knock.x = 0;
+    this.knock.z = 0;
+    this.knockT = 0;
+    this.yawKick = 0;
     this.brake = 0;
     this.roll = 0;
     this.pitch = 0;
@@ -91,6 +99,22 @@ export class Car {
   }
 
   get kmh() { return Math.hypot(this.vel.x, this.vel.z) * 3.6; }
+
+  /** 차량 충돌 임펄스 — 속도 변화 + 그립에 먹히지 않는 넉백 + 차체 흔들림 */
+  applyImpulse(vx, vz) {
+    this.vel.x += vx;
+    this.vel.z += vz;
+    // 넉백 성분은 접지력 감쇠를 받지 않으므로 실제로 밀려나는 거리로 체감된다
+    this.knock.x += vx * 0.9;
+    this.knock.z += vz * 0.9;
+    this.knockT = 0.55;
+    // 충격을 받은 쪽 옆구리 방향으로 차체가 휘청 (좌우 부호는 충격의 횡성분)
+    const lx = Math.cos(this.yaw), lz = -Math.sin(this.yaw);
+    const lat = vx * lx + vz * lz;
+    const mag = Math.hypot(vx, vz);
+    this.yawKick = clamp(this.yawKick + (lat >= 0 ? 1 : -1) * Math.min(0.95, mag * 0.09), -1.2, 1.2);
+    this.impact = mag;
+  }
 
   get maxSpeed() { return this.spec.maxSpeed; }
 
@@ -218,11 +242,12 @@ export class Car {
     let yawRate = -(vLong / WHEELBASE) * Math.tan(maxSteer * this.steerVisual);
     if (this.reversing) yawRate *= 0.8;
 
-    const gripBase = 24 * spec.grip;
-    const latAccelCap = (this.drifting ? 27 * spec.driftGrip : gripBase) * (offRoad ? 0.5 : 1);
-    const cap = latAccelCap / Math.max(6, Math.abs(vLong));
+    // 횡가속 한계 — 예전 값(24/27 m/s²)은 중속에서도 초당 80~100°씩 머리가 팽이처럼
+    //  돌아버려 '제자리 회전'처럼 보였다. 실제 코너 궤적을 따라 옆으로 흐르는 수준으로 낮춘다.
+    const gripBase = 19.5 * spec.grip;
+    const latAccelCap = (this.drifting ? 22.5 * spec.driftGrip : gripBase) * (offRoad ? 0.5 : 1);
+    const cap = latAccelCap / Math.max(7, Math.abs(vLong));
     yawRate = clamp(yawRate, -cap, cap);
-    if (this.drifting) yawRate *= 1.1 * spec.steer;
 
     /* ── 접지력 / 드리프트 슬립 ───────────────────────── */
     if (this.drifting) {
@@ -242,11 +267,24 @@ export class Car {
     this.vLat = vLat;
 
     // 조향 회전 (차체만 먼저 돌리고, 속도 벡터는 관성으로 남는다 → 드리프트)
-    this.yaw += yawRate * dt;
+    //  + 충돌로 받은 차체 흔들림(yawKick)은 짧게 감쇠
+    this.yaw += (yawRate + this.yawKick) * dt;
+    this.yawKick *= Math.exp(-5.5 * dt);
     this.yaw = ((this.yaw + Math.PI) % TAU + TAU) % TAU - Math.PI;
 
-    this.pos.x += this.vel.x * dt;
-    this.pos.z += this.vel.z * dt;
+    // 넉백 성분 포함 이동 — 충돌 직후에는 접지력과 무관하게 확 밀려난다
+    this.pos.x += (this.vel.x + this.knock.x) * dt;
+    this.pos.z += (this.vel.z + this.knock.z) * dt;
+    if (this.knockT > 0) {
+      this.knockT = Math.max(0, this.knockT - dt);
+      const kd = Math.exp(-2.9 * dt);
+      this.knock.x *= kd;
+      this.knock.z *= kd;
+    } else {
+      this.knock.x *= Math.exp(-11 * dt);
+      this.knock.z *= Math.exp(-11 * dt);
+    }
+    if (Math.hypot(this.knock.x, this.knock.z) < 0.04) { this.knock.x = 0; this.knock.z = 0; }
 
     /* ── 가드레일 충돌 ────────────────────────────────── */
     const p2 = t.project(this.pos.x, this.pos.z, this.pathHint);

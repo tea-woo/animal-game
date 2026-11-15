@@ -1,5 +1,5 @@
 // HUD — 랩·순위·기록·속도계·드리프트/니트로 게이지·코스 미니맵
-import { clamp, formatTime } from './util.js?v=20261115c';
+import { clamp, formatTime } from './util.js?v=20261115d';
 
 export class Hud {
   constructor(track) {
