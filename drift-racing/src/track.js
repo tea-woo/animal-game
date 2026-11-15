@@ -1,12 +1,12 @@
 // 코스 생성 — 레이싱 서킷(아스팔트) / 오프로드(흙·자갈) 두 가지 코스를 만든다.
 //  · 코스 선택은 buildTrack(scene, 'circuit' | 'offroad') 로 하고, 바꿀 때는 반환된
 //    track.dispose() 로 이전 코스의 지오메트리·재질·텍스처를 모두 정리한다.
-import THREE from './three.js?v=20261115f';
-import { clamp, rand, TAU } from './util.js?v=20261115f';
+import THREE from './three.js?v=20261115g';
+import { clamp, rand, TAU } from './util.js?v=20261115g';
 import {
   asphaltTexture, dirtRoadTexture, dirtGroundTexture, curbTexture, grassTexture,
   buildingTexture, bannerTexture, crowdTexture, signTexture, numberTexture, woodTexture,
-} from './textures.js?v=20261115f';
+} from './textures.js?v=20261115g';
 
 /* ── 코스 정의 ─────────────────────────────────────────── */
 export const COURSES = {
@@ -15,8 +15,8 @@ export const COURSES = {
     label: '레이싱 서킷',
     en: 'CIRCUIT',
     emoji: '🏁',
-    desc: '아스팔트 · 연석 · 가드레일',
-    tagline: '아스팔트 서킷 · 3랩 · 4대 경쟁',
+    desc: '아스팔트 2.4km · 연석 · 가드레일',
+    tagline: '아스팔트 서킷 · 2.4km · 3랩',
     halfWidth: 8.4,
     shoulder: 3.2,
     railMargin: 3.4,
@@ -35,8 +35,8 @@ export const COURSES = {
     label: '오프로드',
     en: 'OFFROAD',
     emoji: '🏜️',
-    desc: '흙·자갈 · 바위 · 나무 울타리',
-    tagline: '비포장 오프로드 · 3랩 · 4대 경쟁',
+    desc: '흙·자갈 · 바위 · 통나무 · 점프대 · 진흙',
+    tagline: '비포장 오프로드 · 2.4km · 3랩',
     halfWidth: 9.6,
     shoulder: 2.6,
     railMargin: 4.8,
@@ -53,18 +53,33 @@ export const COURSES = {
 };
 
 // 좌표: (x, z) 평면. 시작/결승 직선은 +x 방향.
+// 2026-11 개편 — 약 2,400m 롱 코스. 긴 고속 직선 · 완만한 고속 스윕 · S자 연속 커브
+//  · 타이트 헤어핀(인필드 로브) · 서쪽 대스윕으로 구성한다. (기존 ~950m → 2.4km)
 const CONTROL_CIRCUIT = [
-  [150, 203], [238, 197], [286, 172], [300, 128],
-  [286, 84], [246, 54], [186, 44], [146, 55], [128, 92],
-  [130, 130], [117, 158], [88, 163], [77, 136], [82, 100],
-  [70, 70], [34, 55], [9, 86], [4, 136], [18, 181], [40, 199], [60, 200],
+  [-45, 291], [119, 284], [250, 273],   // 결승 직선(고속)
+  [323, 242], [356, 180], [358, 111],   // 1코너 완만한 고속 우회전
+  [341, 45], [314, -28],                // 북쪽 고속 구간
+  [268, -94], [209, -133], [148, -128], // 2코너 미디엄
+  [102, -100], [75, -58],               // 인필드 진입
+  [83, -4], [109, 45], [96, 94],        // S자 연속 커브
+  [75, 135], [37, 142], [6, 127], [-7, 91], [1, 45],   // 타이트 헤어핀
+  [-33, -45], [-69, -94],               // 헤어핀 탈출 · 남서 직선
+  [-135, -127], [-209, -122], [-266, -77],   // 남쪽 대스윕
+  [-307, -4], [-323, 94], [-319, 189],  // 서쪽 장직선
+  [-348, 258], [-266, 291], [-200, 295],     // 마지막 코너 → 결승 직선
 ];
 
-// 오프로드: 긴 직선 + 큰 스윕 두 개 + 완만한 시케인 — 서킷과 완전히 다른 라인
+// 오프로드: 약 2,400m — 긴 직선 + 넓은 인필드 로브 + 서쪽 대스윕. 서킷과 완전히 다른 라인
 const CONTROL_OFFROAD = [
-  [46, 210], [150, 212], [250, 205], [300, 188], [324, 144], [296, 100],
-  [248, 90], [196, 96], [160, 112], [120, 98], [70, 88], [20, 102],
-  [-8, 148], [14, 196],
+  [-100, 312], [120, 306], [280, 292],  // 스타트 장직선
+  [380, 250], [430, 175], [436, 90],    // 동쪽 고속 스윕
+  [408, 5], [350, -55], [270, -85],     // 남동 스윕
+  [200, -70], [160, -20],               // 인필드 진입
+  [176, 60], [150, 130], [86, 150],     // 인필드 로브
+  [20, 120], [-10, 50],                 // 로브 탈출
+  [-60, -10], [-140, -40], [-230, -30], // 남서 구간
+  [-300, 20], [-340, 110], [-350, 210], // 서쪽 스윕
+  [-400, 292], [-320, 335], [-215, 325],// 마지막 코너 → 스타트 직선
 ];
 
 export function buildTrack(scene, courseId = 'circuit') {
@@ -128,6 +143,66 @@ export function buildTrack(scene, courseId = 'circuit') {
     return 0.22 + b * spec.bumpAmp * edge;
   }
 
+  /* ── 오프로드 장애물 데이터 (램프·진흙·바위/통나무/상자) ── */
+  const obstacles = [];   // {kind, x, z, r, s, lat}
+  const ramps = [];       // {s0, len, lat, w, h}
+  const muds = [];        // {s0, s1, latMin, latMax, x, z, yaw}
+  const wrapD = (d) => (d > length / 2 ? d - length : d < -length / 2 ? d + length : d);
+
+  // 램프 노면 높이 — 램프 안에서만 경사면 높이를 더한다
+  function rampLift(s, lat) {
+    for (let i = 0; i < ramps.length; i++) {
+      const rp = ramps[i];
+      let d = wrapD(s - rp.s0);
+      if (d < 0 || d > rp.len) continue;
+      const dl = Math.abs(lat - rp.lat);
+      if (dl > rp.w * 0.5) continue;
+      const edge = clamp((rp.w * 0.5 - dl) / 0.7, 0, 1);   // 옆으로 살짝 흘러내리는 단면
+      const t = d / rp.len;
+      return rp.h * t * edge;
+    }
+    return 0;
+  }
+  // 차량이 밟는 실제 표면(지형 + 램프)
+  function surfaceAt(s, lat = 0) {
+    return heightAt(s, lat) + rampLift(s, lat);
+  }
+  function mudAt(s, lat) {
+    for (let i = 0; i < muds.length; i++) {
+      const m = muds[i];
+      if (lat < m.latMin || lat > m.latMax) continue;
+      const d = wrapD(s - m.s0);
+      if (d >= 0 && d <= m.len) return m;
+    }
+    return null;
+  }
+  // 코스 구간 인덱스로 주변 장애물을 빠르게 찾기 위한 버킷
+  function obstaclesNear(s, lat, range = 22) {
+    const i = Math.round((((s % length) + length) % length) / ds) % N;
+    const out = [];
+    for (let k = -range; k <= range; k++) {
+      const b = obsBuckets[(i + k + N) % (N + 1)];
+      if (!b) continue;
+      for (const o of b) out.push(o);
+    }
+    return out;
+  }
+  const obsBuckets = [];
+
+  /* ── 코스 한눈 크기 · 장경에 맞춘 풍경 스케일 ────────── */
+  let bbMinX = Infinity, bbMaxX = -Infinity, bbMinZ = Infinity, bbMaxZ = -Infinity;
+  for (const p of pts) {
+    if (p.x < bbMinX) bbMinX = p.x;
+    if (p.x > bbMaxX) bbMaxX = p.x;
+    if (p.z < bbMinZ) bbMinZ = p.z;
+    if (p.z > bbMaxZ) bbMaxZ = p.z;
+  }
+  const span = Math.max(bbMaxX - bbMinX, bbMaxZ - bbMinZ);
+  const SC = clamp(span / 300, 1, 3.2);          // 예전 코스(≈300m 폭) 대비 풍경 배치 배율
+  const RR = (a, b) => rand(a * SC, b * SC);     // 반경 스케일용
+  const cX = (bbMinX + bbMaxX) / 2, cZ = (bbMinZ + bbMaxZ) / 2;
+
+
   /* ── 리본 지오메트리 헬퍼 ─────────────────────────────── */
   function ribbon(offA, offB, dy, vScale, tex, opts = {}) {
     const pos = [], uv = [], nor = [], ind = [];
@@ -162,24 +237,24 @@ export function buildTrack(scene, courseId = 'circuit') {
   /* ── 지면 ─────────────────────────────────────────────── */
   if (spec.id === 'offroad') {
     const groundMap = trackTex(dirtGroundTexture());
-    groundMap.repeat.set(38, 38);
+    groundMap.repeat.set(38 * SC, 38 * SC);
     const ground = new THREE.Mesh(
-      new THREE.PlaneGeometry(1200, 1200, 1, 1),
+      new THREE.PlaneGeometry(span * 4.2, span * 4.2, 1, 1),
       new THREE.MeshStandardMaterial({ map: groundMap, roughness: 1, metalness: 0, color: 0xd8c49c })
     );
     ground.rotation.x = -Math.PI / 2;
-    ground.position.set(150, -0.02, 150);
+    ground.position.set(cX, -0.02, cZ);
     ground.receiveShadow = true;
     group.add(ground);
   } else {
     const grassMap = trackTex(grassTexture());
-    grassMap.repeat.set(46, 46);
+    grassMap.repeat.set(46 * SC, 46 * SC);
     const ground = new THREE.Mesh(
-      new THREE.PlaneGeometry(900, 900, 1, 1),
+      new THREE.PlaneGeometry(span * 3.6, span * 3.6, 1, 1),
       new THREE.MeshStandardMaterial({ map: grassMap, roughness: 1, metalness: 0, color: 0xb6c99a })
     );
     ground.rotation.x = -Math.PI / 2;
-    ground.position.set(150, -0.02, 105);
+    ground.position.set(cX, -0.02, cZ);
     ground.receiveShadow = true;
     group.add(ground);
   }
@@ -297,13 +372,14 @@ export function buildTrack(scene, courseId = 'circuit') {
     const tyreGeo = new THREE.TorusGeometry(0.42, 0.16, 6, 12);
     tyreGeo.rotateX(Math.PI / 2);
     const tyreMat = new THREE.MeshStandardMaterial({ color: 0x1c1e22, roughness: 0.95 });
-    const tyreCount = 16;
+    const tyreCount = Math.round(16 * SC);
     const tyres = new THREE.InstancedMesh(tyreGeo, tyreMat, tyreCount * 3);
     let tIdx = 0;
     const hayGeo = new THREE.CylinderGeometry(0.62, 0.62, 1.1, 10);
     hayGeo.rotateZ(Math.PI / 2);
     const hayMat = new THREE.MeshStandardMaterial({ color: 0xcfae63, roughness: 0.95 });
-    const hay = new THREE.InstancedMesh(hayGeo, hayMat, 26);
+    const hayN = Math.round(26 * SC);
+    const hay = new THREE.InstancedMesh(hayGeo, hayMat, hayN);
     let hIdx = 0;
     for (let k = 0; k < tyreCount; k++) {
       const s = (k / tyreCount) * length + 11;
@@ -320,7 +396,7 @@ export function buildTrack(scene, courseId = 'circuit') {
         dummy.updateMatrix();
         tyres.setMatrixAt(tIdx++, dummy.matrix);
       }
-      if (hIdx < 26) {
+      if (hIdx < hayN) {
         const hs = (s + 6.2) % length;
         const hp = placeAt(hs);
         const hr = rightOf(hp.p);
@@ -446,6 +522,181 @@ export function buildTrack(scene, courseId = 'circuit') {
     group.add(arch);
   }
 
+  /* ── 오프로드 장애물 — 바위 · 통나무 · 나무상자 · 점프대 · 진흙 ──
+     좌우 레인을 번갈아 배치해 항상 반대쪽에 피할 공간이 남게 한다. */
+  if (spec.id === 'offroad') {
+    const pad0 = 78;
+    const gap = 74;
+    const kinds = ['rock', 'log', 'crate', 'ramp', 'mud', 'rock', 'crate', 'ramp', 'log', 'mud'];
+    const defs = [];
+    let seq = 0;
+    for (let s = pad0; s < length - 52; s += gap) {
+      const side = seq % 2 === 0 ? -1 : 1;
+      const kind = kinds[seq % kinds.length];
+      const latC = side * hw * 0.40;
+      defs.push({ kind, s: s + ((seq * 13) % 17), lat: latC, side });
+      seq++;
+    }
+
+    const rockList = [], logList = [], crateList = [];
+    for (const d of defs) {
+      const p = placeAt(d.s, d.lat);
+      const base = heightAt(d.s, d.lat);
+      if (d.kind === 'rock') {
+        const n = 2 + ((seq + Math.round(d.s)) % 2);
+        for (let k = 0; k < n; k++) {
+          const off = (k - (n - 1) / 2) * 2.4 + rand(-0.4, 0.4);
+          const sc = rand(0.85, 1.5);
+          const dsOff = rand(-1.6, 1.6);
+          const latUsed = d.lat + off * d.side * -1;
+          const q = placeAt(d.s + dsOff, latUsed);
+          const x = q.x, z = q.z;
+          const y = heightAt(d.s + dsOff, latUsed) + sc * 0.32;
+          rockList.push({
+            x, z, y, sc, yaw: rand(0, TAU),
+            kind: 'rock', r: sc * 1.15, s: d.s + dsOff, lat: latUsed,
+          });
+        }
+      } else if (d.kind === 'log') {
+        const sc = rand(0.9, 1.15);
+        logList.push({ x: p.x, z: p.z, y: base + 0.42 * sc, sc, yaw: p.yaw + Math.PI / 2, r: 2.1 * sc, s: d.s, lat: d.lat });
+      } else if (d.kind === 'crate') {
+        crateList.push({ x: p.x, z: p.z, y: base, sc: rand(0.95, 1.15), yaw: p.yaw + rand(-0.2, 0.2), r: 1.35, s: d.s, lat: d.lat });
+      } else if (d.kind === 'ramp') {
+        ramps.push({ s0: d.s - 1, len: 8.6, lat: d.lat, w: 6.4, h: 1.75, yaw: p.yaw, x: p.x, z: p.z });
+      } else if (d.kind === 'mud') {
+        muds.push({
+          s0: d.s - 1.5, len: 16, latMin: d.lat - 3.4, latMax: d.lat + 3.4,
+          x: p.x, z: p.z, yaw: p.yaw,
+        });
+      }
+    }
+
+    const dummy2 = new THREE.Object3D();
+    // 바위
+    if (rockList.length) {
+      const geo = new THREE.IcosahedronGeometry(1, 1);
+      const pos = geo.attributes.position;
+      for (let i = 0; i < pos.count; i++) {
+        const k = 0.72 + Math.random() * 0.5;
+        pos.setXYZ(i, pos.getX(i) * k, pos.getY(i) * k * 0.9, pos.getZ(i) * k);
+      }
+      geo.computeVertexNormals();
+      const mat = new THREE.MeshStandardMaterial({ color: 0x8e8578, roughness: 0.96, flatShading: true });
+      const inst = new THREE.InstancedMesh(geo, mat, rockList.length);
+      rockList.forEach((o, i) => {
+        dummy2.position.set(o.x, o.y, o.z);
+        dummy2.rotation.set(rand(-0.15, 0.15), o.yaw, rand(-0.15, 0.15));
+        dummy2.scale.set(o.sc * rand(0.95, 1.25), o.sc * rand(0.8, 1.1), o.sc * rand(0.95, 1.25));
+        dummy2.updateMatrix();
+        inst.setMatrixAt(i, dummy2.matrix);
+        obstacles.push({ kind: 'rock', x: o.x, z: o.z, r: o.r, s: o.s, lat: o.lat });
+      });
+      inst.castShadow = false;
+      group.add(inst);
+    }
+    // 통나무 (코스를 가로지르는 통나무)
+    if (logList.length) {
+      const geo = new THREE.CylinderGeometry(0.42, 0.46, 4.6, 10);
+      geo.rotateZ(Math.PI / 2);
+      const mat = new THREE.MeshStandardMaterial({ map: trackTex(woodTexture()), color: 0xb08a5e, roughness: 0.93 });
+      const inst = new THREE.InstancedMesh(geo, mat, logList.length);
+      logList.forEach((o, i) => {
+        dummy2.position.set(o.x, o.y, o.z);
+        dummy2.rotation.set(0, o.yaw, rand(-0.05, 0.05));
+        dummy2.scale.set(o.sc, o.sc, o.sc);
+        dummy2.updateMatrix();
+        inst.setMatrixAt(i, dummy2.matrix);
+        obstacles.push({ kind: 'log', x: o.x, z: o.z, r: o.r, s: o.s, lat: o.lat });
+      });
+      group.add(inst);
+    }
+    // 나무 상자 (2단 스택)
+    if (crateList.length) {
+      const geo = new THREE.BoxGeometry(1.9, 1.5, 1.9);
+      const mat = new THREE.MeshStandardMaterial({ map: trackTex(woodTexture()), color: 0xc9a274, roughness: 0.9 });
+      const inst = new THREE.InstancedMesh(geo, mat, crateList.length * 2);
+      let ci = 0;
+      crateList.forEach((o) => {
+        for (let k = 0; k < 2; k++) {
+          dummy2.position.set(o.x + (k ? rand(-0.35, 0.35) : 0), o.y + 0.76 + k * 1.5, o.z + (k ? rand(-0.35, 0.35) : 0));
+          dummy2.rotation.set(0, o.yaw + (k ? rand(-0.35, 0.35) : 0), 0);
+          dummy2.scale.set(o.sc, o.sc, o.sc);
+          dummy2.updateMatrix();
+          inst.setMatrixAt(ci++, dummy2.matrix);
+        }
+        obstacles.push({ kind: 'crate', x: o.x, z: o.z, r: o.r, s: o.s, lat: o.lat });
+      });
+      group.add(inst);
+    }
+    // 점프대 (경사로) — 올라가서 뛰어오르는 쐐기 모양
+    for (const rp of ramps) {
+      const w = rp.w, len = rp.len, h = rp.h;
+      const v = [
+        -w / 2, 0, 0, w / 2, 0, 0, w / 2, h, len, -w / 2, h, len,      // 경사면
+        -w / 2, 0, len, w / 2, 0, len, -w / 2, h, len, w / 2, h, len,  // 뒷면
+      ];
+      const idxs = [0, 1, 2, 0, 2, 3, 4, 6, 5, 5, 6, 7, 0, 3, 6, 0, 6, 4, 1, 5, 7, 1, 7, 2];
+      const g = new THREE.BufferGeometry();
+      g.setAttribute('position', new THREE.Float32BufferAttribute(v, 3));
+      g.setIndex(idxs);
+      g.computeVertexNormals();
+      const mat = new THREE.MeshStandardMaterial({
+        color: 0xb4743a, roughness: 0.82, metalness: 0.12, side: THREE.DoubleSide,
+      });
+      const mesh = new THREE.Mesh(g, mat);
+      mesh.position.set(rp.x, heightAt(rp.s0, rp.lat), rp.z);
+      mesh.rotation.y = rp.yaw;
+      group.add(mesh);
+      // 노란 경고 줄무늬 (경사면 위)
+      for (let k = 0; k < 3; k++) {
+        const t = 0.28 + k * 0.26;
+        const st = new THREE.Mesh(
+          new THREE.PlaneGeometry(w * 0.94, 0.34),
+          new THREE.MeshStandardMaterial({ color: k % 2 ? 0x1b1c1f : 0xffd23f, roughness: 0.7, side: THREE.DoubleSide })
+        );
+        st.position.set(0, h * t + 0.02, len * t);
+        st.rotation.x = -Math.atan2(h, len);
+        mesh.add(st);
+      }
+    }
+    // 진흙 · 물웅덩이 — 노면을 따라 휘는 납작한 패치
+    for (const m of muds) {
+      const rows = 9;
+      const pos = [], ind = [];
+      const latA = m.latMin, latB = m.latMax;
+      for (let r = 0; r <= rows; r++) {
+        const ss = m.s0 + (m.len * r) / rows;
+        for (const lat of [latA, latB]) {
+          const q = placeAt(ss, lat);
+          pos.push(q.x, heightAt(ss, lat) + 0.075, q.z);
+        }
+      }
+      for (let r = 0; r < rows; r++) {
+        const a = r * 2, b = r * 2 + 1, c = (r + 1) * 2, d = (r + 1) * 2 + 1;
+        ind.push(a, c, b, b, c, d);
+      }
+      const g = new THREE.BufferGeometry();
+      g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+      g.setIndex(ind);
+      g.computeVertexNormals();
+      const mat = new THREE.MeshStandardMaterial({
+        color: 0x4a3721, roughness: 0.18, metalness: 0.28,
+        transparent: true, opacity: 0.9, side: THREE.DoubleSide,
+        envMapIntensity: 1.1,
+      });
+      const mesh = new THREE.Mesh(g, mat);
+      mesh.renderOrder = 1;
+      group.add(mesh);
+    }
+
+    // 장애물 공간 버킷 (코스 구간별 빠른 검색)
+    for (const o of obstacles) {
+      const i = Math.round((((o.s % length) + length) % length) / ds) % N;
+      (obsBuckets[i] || (obsBuckets[i] = [])).push(o);
+    }
+  }
+
   /* ── 풍경 ─────────────────────────────────────────────── */
   const samplesForDist = pts.filter((_, i) => i % 2 === 0);
   const centroid = pts.reduce((a, p) => ({ x: a.x + p.x / N, z: a.z + p.z / N }), { x: 0, z: 0 });
@@ -460,6 +711,7 @@ export function buildTrack(scene, courseId = 'circuit') {
   }
 
   const cTmp = new THREE.Color();
+  const BS = clamp(SC * 0.75, 1, 2.1);   // 건물 크기 배율
 
   if (spec.id === 'offroad') {
     /* 바위 */
@@ -473,13 +725,13 @@ export function buildTrack(scene, courseId = 'circuit') {
       rockGeo.computeVertexNormals();
     }
     const rockMat = new THREE.MeshStandardMaterial({ color: 0x9d917f, roughness: 0.95, flatShading: true });
-    const ROCK_N = 110;
+    const ROCK_N = Math.round(110 * SC);
     const rocks = new THREE.InstancedMesh(rockGeo, rockMat, ROCK_N);
     let ri = 0, guard = 0;
     while (ri < ROCK_N && guard < 5000) {
       guard++;
       const ang = rand(0, TAU);
-      const rad = rand(28, 240);
+      const rad = RR(28, 240);
       const x = centroid.x + Math.cos(ang) * rad * 1.15;
       const z = centroid.z + Math.sin(ang) * rad;
       if (!farFromTrack(x, z, RAIL_OFF + 9)) continue;
@@ -495,7 +747,7 @@ export function buildTrack(scene, courseId = 'circuit') {
     group.add(rocks);
 
     /* 소나무 (기둥 + 3단 잎) */
-    const PINE_N = 90;
+    const PINE_N = Math.round(90 * SC);
     const trunkGeo = new THREE.CylinderGeometry(0.22, 0.34, 3.2, 6);
     const trunkMat = new THREE.MeshStandardMaterial({ color: 0x5a4128, roughness: 0.95 });
     const pTrunks = new THREE.InstancedMesh(trunkGeo, trunkMat, PINE_N);
@@ -508,7 +760,7 @@ export function buildTrack(scene, courseId = 'circuit') {
     while (pin < PINE_N && guard < 4000) {
       guard++;
       const ang = rand(0, TAU);
-      const rad = rand(24, 230);
+      const rad = RR(24, 230);
       const x = centroid.x + Math.cos(ang) * rad * 1.15;
       const z = centroid.z + Math.sin(ang) * rad;
       if (!farFromTrack(x, z, RAIL_OFF + 7)) continue;
@@ -532,7 +784,7 @@ export function buildTrack(scene, courseId = 'circuit') {
     group.add(pTrunks, ...tiers);
 
     /* 선인장 */
-    const CAC_N = 26;
+    const CAC_N = Math.round(26 * SC);
     const cacGeo = new THREE.CylinderGeometry(0.26, 0.32, 3.0, 8);
     const cacMat = new THREE.MeshStandardMaterial({ color: 0x4f7a43, roughness: 0.85 });
     const cacti = new THREE.InstancedMesh(cacGeo, cacMat, CAC_N);
@@ -542,7 +794,7 @@ export function buildTrack(scene, courseId = 'circuit') {
     while (ci < CAC_N && guard < 3000) {
       guard++;
       const ang = rand(0, TAU);
-      const rad = rand(30, 220);
+      const rad = RR(30, 220);
       const x = centroid.x + Math.cos(ang) * rad * 1.15;
       const z = centroid.z + Math.sin(ang) * rad;
       if (!farFromTrack(x, z, RAIL_OFF + 8)) continue;
@@ -568,13 +820,13 @@ export function buildTrack(scene, courseId = 'circuit') {
     /* 덤불 + 마른 풀 */
     const bushGeo = new THREE.IcosahedronGeometry(1, 0);
     const bushMat = new THREE.MeshStandardMaterial({ color: 0x8a8547, roughness: 0.95, flatShading: true });
-    const BUSH_N = 220;
+    const BUSH_N = Math.round(220 * SC);
     const bushes = new THREE.InstancedMesh(bushGeo, bushMat, BUSH_N);
     let bi2 = 0; guard = 0;
     while (bi2 < BUSH_N && guard < 6000) {
       guard++;
       const ang = rand(0, TAU);
-      const rad = rand(16, 250);
+      const rad = RR(16, 250);
       const x = centroid.x + Math.cos(ang) * rad * 1.2;
       const z = centroid.z + Math.sin(ang) * rad;
       if (!farFromTrack(x, z, RAIL_OFF + 2.5)) continue;
@@ -597,7 +849,7 @@ export function buildTrack(scene, courseId = 'circuit') {
     const mesas = new THREE.InstancedMesh(mesaGeo, mesaMat, 9);
     for (let i = 0; i < 9; i++) {
       const ang = (i / 9) * TAU + rand(-0.16, 0.16);
-      const rad = rand(300, 390);
+      const rad = RR(300, 390);
       const x = centroid.x + Math.cos(ang) * rad;
       const z = centroid.z + Math.sin(ang) * rad;
       dummy.position.set(x, rand(6, 13), z);
@@ -655,7 +907,7 @@ export function buildTrack(scene, courseId = 'circuit') {
     const bMatA = new THREE.MeshStandardMaterial({ map: bTexA, color: 0xc2c9d0, roughness: 0.72, metalness: 0.14 });
     const bMatB = new THREE.MeshStandardMaterial({ map: bTexB, color: 0xcbd0d4, roughness: 0.66, metalness: 0.2 });
     const bGeo = new THREE.BoxGeometry(1, 1, 1);
-    const bCount = 58;
+    const bCount = Math.round(58 * SC);
     const buildings = [new THREE.InstancedMesh(bGeo, bMatA, bCount), new THREE.InstancedMesh(bGeo, bMatB, bCount)];
     const bi = [0, 0];
     let placed = 0;
@@ -663,11 +915,11 @@ export function buildTrack(scene, courseId = 'circuit') {
     while (placed < bCount * 2 && guard < 3000) {
       guard++;
       const ang = rand(0, TAU);
-      const rad = rand(58, 215);
+      const rad = RR(58, 215);
       const x = centroid.x + Math.cos(ang) * rad * 1.25;
       const z = centroid.z + Math.sin(ang) * rad;
       if (!farFromTrack(x, z, 34)) continue;
-      const w = rand(8, 22), d = rand(8, 22), h = rand(14, 76);
+      const w = rand(10, 26) * BS, d = rand(10, 26) * BS, h = rand(16, 80) * BS;
       const which = placed % 2;
       dummy.position.set(x, h / 2, z);
       dummy.rotation.set(0, rand(-0.4, 0.4), 0);
@@ -689,7 +941,7 @@ export function buildTrack(scene, courseId = 'circuit') {
     const leafGeo = new THREE.IcosahedronGeometry(1.9, 0);
     const trunkMat = new THREE.MeshStandardMaterial({ color: 0x54402c, roughness: 0.95 });
     const leafMat = new THREE.MeshStandardMaterial({ color: 0x3d7c3f, roughness: 0.9, flatShading: true });
-    const TREES = 150;
+    const TREES = Math.round(150 * SC);
     const trunks = new THREE.InstancedMesh(trunkGeo, trunkMat, TREES);
     const leaves = new THREE.InstancedMesh(leafGeo, leafMat, TREES);
     leaves.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(TREES * 3), 3);
@@ -699,7 +951,7 @@ export function buildTrack(scene, courseId = 'circuit') {
     while (ti < TREES && guard < 4000) {
       guard++;
       const ang = rand(0, TAU);
-      const rad = rand(20, 230);
+      const rad = RR(20, 230);
       const x = centroid.x + Math.cos(ang) * rad * 1.2;
       const z = centroid.z + Math.sin(ang) * rad;
       if (!farFromTrack(x, z, 15)) continue;
@@ -745,16 +997,26 @@ export function buildTrack(scene, courseId = 'circuit') {
     const p = placeAt(sg.s * length);
     const r = rightOf(p.p);
     const side = rand() < 0.5 ? 1 : -1;
-    const bill = new THREE.Mesh(
-      new THREE.PlaneGeometry(9, 4.2),
-      new THREE.MeshStandardMaterial({
-        map: trackTex(signTexture(sg.txt, sg.color)), roughness: 0.6, metalness: 0.1,
-        emissive: 0xffffff, emissiveIntensity: 0.08, side: THREE.DoubleSide,
-      })
-    );
-    bill.position.set(p.x + r.x * (RAIL_OFF + 5.4) * side, 3.4, p.z + r.z * (RAIL_OFF + 5.4) * side);
-    bill.rotation.y = p.yaw + (side > 0 ? -Math.PI / 2 : Math.PI / 2);
+    // 앞/뒤 두 장을 서로 마주 보게 붙여 뒷면에서 글씨가 좌우반전되지 않게 한다
+    const signMat = new THREE.MeshStandardMaterial({
+      map: trackTex(signTexture(sg.txt, sg.color)), roughness: 0.6, metalness: 0.1,
+      emissive: 0xffffff, emissiveIntensity: 0.08, side: THREE.FrontSide,
+    });
+    const signGeo = new THREE.PlaneGeometry(9, 4.2);
+    const bill = new THREE.Mesh(signGeo, signMat);
+    const billPos = {
+      x: p.x + r.x * (RAIL_OFF + 5.4) * side,
+      z: p.z + r.z * (RAIL_OFF + 5.4) * side,
+      y: heightAt(sg.s * length, (RAIL_OFF + 5.4) * side) + 3.4,
+      yaw: p.yaw + (side > 0 ? -Math.PI / 2 : Math.PI / 2),
+    };
+    bill.position.set(billPos.x, billPos.y, billPos.z);
+    bill.rotation.y = billPos.yaw;
     group.add(bill);
+    const billBack = new THREE.Mesh(signGeo, signMat);
+    billBack.position.set(billPos.x, billPos.y, billPos.z);
+    billBack.rotation.y = billPos.yaw + Math.PI;
+    group.add(billBack);
     for (const s2 of [-1, 1]) {
       const leg = new THREE.Mesh(
         new THREE.BoxGeometry(0.24, 3.4, 0.24),
@@ -830,7 +1092,10 @@ export function buildTrack(scene, courseId = 'circuit') {
     meta: spec,
     halfWidth: hw,
     railOff: RAIL_OFF,
+    span,
+    obstacles, ramps, muds,
     project, placeAt, startInfo, gridInfo, heightAt,
+    surfaceAt, rampLift, mudAt, obstaclesNear,
     curvatureAt(s) {
       const i = idx(Math.round((s / ds) % N));
       return pts[i].curv;

@@ -1,14 +1,15 @@
 // DRIFT LEGEND — 부트스트랩·레이스 진행·카메라·메인 루프
-import THREE from './three.js?v=20261115f';
-import { buildTrack, COURSES } from './track.js?v=20261115f';
-import { CARS, buildCar } from './carModel.js?v=20261115f';
-import { Car } from './car.js?v=20261115f';
-import { AICar } from './ai.js?v=20261115f';
-import { Effects, NitroFlame } from './vfx.js?v=20261115f';
-import { Hud } from './hud.js?v=20261115f';
-import { Input } from './input.js?v=20261115f';
-import { Sfx } from './audio.js?v=20261115f';
-import { clamp, lerp, damp, formatTime, rand } from './util.js?v=20261115f';
+import THREE from './three.js?v=20261115g';
+import { buildTrack, COURSES } from './track.js?v=20261115g';
+import { CARS, buildCar } from './carModel.js?v=20261115g';
+import { Car } from './car.js?v=20261115g';
+import { AICar } from './ai.js?v=20261115g';
+import { Effects, NitroFlame } from './vfx.js?v=20261115g';
+import { Hud } from './hud.js?v=20261115g';
+import { Input } from './input.js?v=20261115g';
+import { Sfx } from './audio.js?v=20261115g';
+import { Net, RemoteCar, makeRoomCode, roomFromUrl, courseFromUrl, inviteLink, BROKERS } from './net.js?v=20261115g';
+import { clamp, lerp, damp, formatTime, rand } from './util.js?v=20261115g';
 
 const TOTAL_LAPS = 3;
 const GRID = [
@@ -204,8 +205,29 @@ class Game {
     this.frameTimes = [];
     this.pixelRatioCap = Math.min(window.devicePixelRatio || 1, 2);
 
+    /* ── 멀티플레이 상태 ──────────────────────────── */
+    this.mode = 'solo';              // 메뉴에서 고른 모드
+    this.raceMode = 'solo';          // 실제 레이스 모드
+    this.playerName = localStorage.getItem('drift.name') || '';
+    this.remotes = new Map();        // id → RemoteCar
+    this.remoteList = [];
+    this.finishedTime = 0;
+    this.standingsAt = 0;
+    this.net = new Net({
+      onStatus: (s, url, lat) => this.onNetStatus(s, url, lat),
+      onPeers: (list) => this.onPeers(list),
+      onState: (id, m, now) => this.onRemoteState(id, m, now),
+      onJoin: (p) => { if (this.state === 'racing' || this.state === 'countdown') this.ensureRemote(p); },
+      onLeave: (id) => this.removeRemote(id),
+      onStart: (m) => this.onNetStart(m),
+      onCourse: (c) => this.onNetCourse(c),
+      onFinish: () => this.renderResultStandings(),
+      onHost: () => this.updateLobbyUI(),
+    });
+
     this.bindUI();
     this.buildCourseCards();
+    this.buildLobbyCourses();
     this.applyAtmosphere();
     this.selectCar(0);
     this.createAI();
@@ -217,6 +239,14 @@ class Game {
 
     this.hud.show(false);
     document.getElementById('menu').classList.remove('hidden');
+    // 초대 링크(?room=1234)로 들어왔으면 바로 그 방 대기실로
+    const urlRoom = roomFromUrl();
+    if (urlRoom) {
+      const urlCourse = courseFromUrl();
+      if (urlCourse) this.setCourse(urlCourse, { silent: true });
+      this.setMode('multi', { silent: true });
+      setTimeout(() => this.joinRoom(urlRoom), 60);
+    }
     document.getElementById('load-fill').style.width = '100%';
     // 로딩 화면은 첫 프레임이 그려진 뒤 사라진다 (느린 기기에서 타이머가 늦어도
     // HUD 조작을 막지 않도록 CSS 에서도 pointer-events 를 끈 상태)
@@ -247,6 +277,32 @@ class Game {
       carList: document.getElementById('car-list'),
       courses: document.getElementById('course-list'),
       tagline: document.getElementById('tagline'),
+      modeSwitch: document.getElementById('mode-switch'),
+      multiPanel: document.getElementById('multi-panel'),
+      soloActions: document.getElementById('solo-actions'),
+      nameInput: document.getElementById('name-input'),
+      roomInput: document.getElementById('room-input'),
+      createRoom: document.getElementById('create-room'),
+      joinRoom: document.getElementById('join-room'),
+      lobby: document.getElementById('lobby'),
+      lobbyCode: document.getElementById('lobby-code'),
+      lobbyName: document.getElementById('lobby-name'),
+      lobbyStatus: document.getElementById('lobby-status'),
+      lobbyDot: document.getElementById('lobby-dot'),
+      lobbyLink: document.getElementById('lobby-link'),
+      copyLink: document.getElementById('copy-link'),
+      shareLink: document.getElementById('share-link'),
+      playerList: document.getElementById('player-list'),
+      lobbyCount: document.getElementById('lobby-count'),
+      lobbyCourses: document.getElementById('lobby-courses'),
+      lobbyCourseNote: document.getElementById('lobby-course-note'),
+      lobbyStart: document.getElementById('lobby-start'),
+      lobbyLeave: document.getElementById('lobby-leave'),
+      lobbyHint: document.getElementById('lobby-hint'),
+      netPill: document.getElementById('net-pill'),
+      netText: document.getElementById('net-text'),
+      standings: document.getElementById('standings'),
+      resultStandings: document.getElementById('result-standings'),
     };
 
     this.input.bindHold(document.getElementById('btn-left'), 'left');
@@ -254,10 +310,11 @@ class Game {
     this.input.bindHold(document.getElementById('btn-drift'), 'drift');
     this.input.bindHold(document.getElementById('btn-boost'), 'boost');
 
-    this.el.start.addEventListener('click', () => this.startRace());    this.el.resume.addEventListener('click', () => this.setPaused(false));
+    this.el.start.addEventListener('click', () => this.startRace());
+    this.el.resume.addEventListener('click', () => this.setPaused(false));
     this.el.restart.addEventListener('click', () => { this.setPaused(false); this.startRace(); });
     this.el.garage.addEventListener('click', () => { this.setPaused(false); this.toMenu(); });
-    this.el.again.addEventListener('click', () => this.startRace());
+    this.el.again.addEventListener('click', () => this.onAgain());
     this.el.resultGarage.addEventListener('click', () => this.toMenu());
     this.el.pauseBtn.addEventListener('click', () => this.setPaused(true));
     this.el.mute.addEventListener('click', () => {
@@ -266,7 +323,365 @@ class Game {
       this.el.mute.textContent = on ? '🔊' : '🔇';
     });
     this.el.bestLap.textContent = this.bestLap ? `베스트 랩 ${formatTime(this.bestLap)}` : '베스트 랩 —';
+
+    /* ── 모드 · 멀티플레이 UI ───────────────────── */
+    if (this.el.modeSwitch) {
+      this.el.modeSwitch.addEventListener('click', (e) => {
+        const b = e.target.closest('.mode-btn');
+        if (b) this.setMode(b.dataset.mode);
+      });
+    }
+    if (this.el.nameInput) {
+      this.el.nameInput.value = this.playerName;
+      this.el.nameInput.addEventListener('input', () => {
+        this.playerName = this.el.nameInput.value.trim().slice(0, 10);
+        localStorage.setItem('drift.name', this.playerName);
+        this.net.name = this.playerName;
+        this.updateLobbyUI();
+      });
+    }
+    if (this.el.roomInput) {
+      this.el.roomInput.addEventListener('input', () => {
+        this.el.roomInput.value = this.el.roomInput.value.replace(/\D/g, '').slice(0, 4);
+      });
+    }
+    if (this.el.lobbyName) {
+      this.el.lobbyName.value = this.playerName;
+      this.el.lobbyName.addEventListener('input', () => {
+        this.playerName = this.el.lobbyName.value.trim().slice(0, 10);
+        localStorage.setItem('drift.name', this.playerName);
+        if (this.el.nameInput) this.el.nameInput.value = this.playerName;
+        this.net.updateProfile({ name: this.playerName });
+        this.updateLobbyUI();
+      });
+    }
+    if (this.el.createRoom) this.el.createRoom.addEventListener('click', () => this.createRoom());
+    if (this.el.joinRoom) {
+      this.el.joinRoom.addEventListener('click', () => {
+        const code = (this.el.roomInput.value || '').trim();
+        if (code.length !== 4) {
+          this.el.roomInput.focus();
+          this.hud.toast('방 코드 4자리를 입력해줘', 1400, '#ffb46b');
+          return;
+        }
+        this.joinRoom(code);
+      });
+    }
+    if (this.el.copyLink) {
+      this.el.copyLink.addEventListener('click', async () => {
+        const link = this.el.lobbyLink.value;
+        try {
+          await navigator.clipboard.writeText(link);
+          this.el.copyLink.textContent = '복사됨!';
+        } catch (e) {
+          this.el.lobbyLink.select();
+          try { document.execCommand('copy'); this.el.copyLink.textContent = '복사됨!'; } catch (e2) { /* noop */ }
+        }
+        setTimeout(() => { this.el.copyLink.textContent = '링크 복사'; }, 1800);
+      });
+    }
+    if (this.el.shareLink) {
+      this.el.shareLink.addEventListener('click', async () => {
+        const link = this.el.lobbyLink.value;
+        const text = `DRIFT LEGEND 같이 달리자! 방 코드 ${this.net.room} — ${link}`;
+        if (navigator.share) {
+          try { await navigator.share({ title: 'DRIFT LEGEND', text, url: link }); } catch (e) { /* 취소 */ }
+        } else if (this.el.copyLink) {
+          this.el.copyLink.click();
+        }
+      });
+    }
+    if (this.el.lobbyStart) this.el.lobbyStart.addEventListener('click', () => this.hostStartRace());
+    if (this.el.lobbyLeave) this.el.lobbyLeave.addEventListener('click', () => this.leaveRoom());
+
     this.updateMenuLabels();
+    this.setMode('solo', { silent: true });
+  }
+
+  /* ── 모드 · 이름 ──────────────────────────────────── */
+  setMode(mode, opts = {}) {
+    if (mode !== 'solo' && mode !== 'multi') return;
+    this.mode = mode;
+    if (this.el.modeSwitch) {
+      for (const b of this.el.modeSwitch.children) b.classList.toggle('sel', b.dataset.mode === mode);
+    }
+    const multi = mode === 'multi';
+    if (this.el.menu) this.el.menu.classList.toggle('multi-mode', multi);
+    if (this.el.multiPanel) this.el.multiPanel.classList.toggle('hidden', !multi);
+    if (this.el.soloActions) this.el.soloActions.classList.toggle('hidden', multi);
+    if (!opts.silent && !multi && this.net.room) this.leaveRoom({ backToMenu: true });
+    this.updateMenuLabels();
+  }
+
+  ensureName() {
+    const n = (this.playerName || '').trim();
+    if (n) return n;
+    this.playerName = '레이서';
+    localStorage.setItem('drift.name', this.playerName);
+    if (this.el.nameInput) this.el.nameInput.value = this.playerName;
+    return this.playerName;
+  }
+
+  /* ── 방 만들기 / 들어가기 ─────────────────────────── */
+  createRoom() {
+    this.ensureName();
+    const code = makeRoomCode();
+    this.net.createRoom({
+      room: code, name: this.playerName, carId: CARS[this.selected].id, color: CARS[this.selected].ui,
+    });
+    this.net.startHeartbeat();
+    this.openLobby();
+  }
+
+  joinRoom(code) {
+    this.ensureName();
+    this.net.joinRoom({
+      room: code, name: this.playerName, carId: CARS[this.selected].id, color: CARS[this.selected].ui,
+    });
+    this.net.startHeartbeat();
+    this.openLobby();
+  }
+
+  openLobby() {
+    this.state = 'lobby';
+    this.raceMode = 'solo';
+    this.el.menu.classList.add('hidden');
+    this.el.result.classList.add('hidden');
+    this.el.lobby.classList.remove('hidden');
+    this.hud.show(false);
+    const link = inviteLink(this.net.room, this.course);
+    if (this.el.lobbyCode) this.el.lobbyCode.textContent = this.net.room || '----';
+    if (this.el.lobbyLink) this.el.lobbyLink.value = link;
+    if (this.el.lobbyName) this.el.lobbyName.value = this.playerName || '';
+    this.updateLobbyUI();
+  }
+
+  closeLobby() {
+    this.el.lobby.classList.add('hidden');
+  }
+
+  leaveRoom(opts = {}) {
+    this.net.leave();
+    for (const rc of this.remotes.values()) {
+      this.scene.remove(rc.model);
+      rc.dispose();
+    }
+    this.remotes.clear();
+    this.remoteList = [];
+    this.closeLobby();
+    this.state = 'menu';
+    this.raceMode = 'solo';
+    this.el.pause.classList.add('hidden');
+    this.el.result.classList.add('hidden');
+    if (this.el.standings) this.el.standings.classList.add('hidden');
+    if (this.el.netPill) this.el.netPill.classList.add('hidden');
+    if (opts.backToMenu !== false) {
+      this.el.menu.classList.remove('hidden');
+      this.setMode('solo', { silent: true });
+    }
+    this.createAI();
+    this.resetGrid();
+    this.ai.forEach((a) => { a.model.visible = false; });
+    this.updateMenuLabels();
+  }
+
+  /* ── 네트워크 이벤트 ─────────────────────────────── */
+  onNetStatus(state, url) {
+    const label = state === 'online' ? '연결됨' : state === 'connecting' ? '연결 중…' : '연결 끊김 · 재시도';
+    if (this.el.lobbyStatus) this.el.lobbyStatus.textContent = label;
+    if (this.el.lobbyDot) this.el.lobbyDot.className = `net-dot ${state}`;
+    if (this.el.netText) {
+      this.el.netText.textContent = `${this.net.peerCount}명`;
+    }
+  }
+
+  onPeers(list) {
+    this.renderLobbyPlayers(list);
+    if (this.state === 'racing' || this.state === 'countdown') {
+      for (const p of list) {
+        if (!p.me && this.net.peers.has(p.id)) this.ensureRemote(this.net.peers.get(p.id));
+      }
+      for (const id of [...this.remotes.keys()]) {
+        if (!this.net.peers.has(id)) this.removeRemote(id);
+      }
+    }
+  }
+
+  renderLobbyPlayers(list) {
+    if (!this.el.playerList) return;
+    this.el.playerList.innerHTML = '';
+    for (const p of list) {
+      const li = document.createElement('li');
+      li.className = 'player-row' + (p.me ? ' me' : '') + (p.online === false ? ' offline' : '');
+      const car = CARS.find((c) => c.id === p.car) || CARS[0];
+      li.innerHTML = `<i style="background:${p.color || car.ui}"></i>` +
+        `<b>${(p.name || '레이서').replace(/[<>&]/g, '')}</b>` +
+        `<span>${car.name}</span>` +
+        (p.host ? '<em>방장</em>' : '') +
+        (p.me ? '<u>나</u>' : '');
+      this.el.playerList.appendChild(li);
+    }
+    if (this.el.lobbyCount) this.el.lobbyCount.textContent = `${list.length}/4`;
+  }
+
+  updateLobbyUI() {
+    if (!this.net.room) return;
+    const host = this.net.host;
+    if (this.el.lobbyStart) {
+      this.el.lobbyStart.disabled = !host;
+      this.el.lobbyStart.style.opacity = host ? '1' : '0.5';
+      this.el.lobbyStart.textContent = host ? '레이스 시작' : '방장을 기다리는 중…';
+    }
+    if (this.el.lobbyCourseNote) {
+      this.el.lobbyCourseNote.textContent = host ? '내가 선택' : '방장이 선택';
+    }
+    if (this.el.lobbyCourses) {
+      this.el.lobbyCourses.classList.toggle('locked', !host);
+    }
+    if (this.el.lobbyHint) {
+      this.el.lobbyHint.textContent = host
+        ? '초대 링크를 가족에게 보내면 바로 이 방에 들어와요. 들어오면 자동으로 목록에 나타나요.'
+        : '방장이 코스를 고르고 레이스 시작을 누르면 같이 출발해요.';
+    }
+    if (this.el.lobbyStatus) {
+      this.el.lobbyStatus.textContent = this.net.connected
+        ? (host ? '방장 · 연결됨' : '연결됨')
+        : '연결 중…';
+    }
+    this.buildLobbyCourses();
+    this.renderLobbyPlayers([
+      { id: this.net.id, name: this.playerName || '레이서', car: CARS[this.selected].id, color: CARS[this.selected].ui, host: this.net.host, me: true, online: true },
+      ...[...this.net.peers.values()].map((p) => ({
+        id: p.id, name: p.name, car: p.car, color: p.color, host: p.host, me: false, online: p.online !== false,
+      })),
+    ]);
+  }
+
+  buildLobbyCourses() {
+    const list = this.el.lobbyCourses;
+    if (!list) return;
+    list.innerHTML = '';
+    for (const key of ['circuit', 'offroad']) {
+      const c = COURSES[key];
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'course-card' + (key === this.course ? ' sel' : '');
+      b.dataset.course = key;
+      b.style.setProperty('--course-accent', key === 'offroad' ? '#ffb347' : '#43e6ff');
+      b.innerHTML = `<span class="cc-emoji">${c.emoji}</span>` +
+        `<span class="cc-body"><b>${c.label}</b><em>${c.desc}</em></span>`;
+      b.addEventListener('click', () => {
+        if (!this.net.host) return;
+        this.net.requestCourse(key);
+        this.setCourse(key);
+      });
+      list.appendChild(b);
+    }
+  }
+
+  /* ── 원격 플레이어 ───────────────────────────────── */
+  ensureRemote(p) {
+    let rc = this.remotes.get(p.id);
+    if (rc) return rc;
+    rc = new RemoteCar({ id: p.id, name: p.name, carId: p.car, color: p.color });
+    this.scene.add(rc.model);
+    this.remotes.set(p.id, rc);
+    this.remoteList = [...this.remotes.values()];
+    this.placeRemoteOnGrid(p.id);
+    return rc;
+  }
+
+  removeRemote(id) {
+    const rc = this.remotes.get(id);
+    if (!rc) return;
+    this.scene.remove(rc.model);
+    rc.dispose();
+    this.remotes.delete(id);
+    this.remoteList = [...this.remotes.values()];
+  }
+
+  onRemoteState(id, m) {
+    let rc = this.remotes.get(id);
+    if (!rc) {
+      const peer = this.net.peers.get(id);
+      rc = this.ensureRemote(peer || { id, name: m.name, car: m.car, color: null });
+    }
+    rc.applyState(m, performance.now() / 1000);
+  }
+
+  /* 그리드 슬롯 — 모두 같은 정렬 기준(아이디)을 써서 화면마다 같은 자리를 본다 */
+  raceSlot(id) {
+    const ids = [this.net.id, ...this.net.peers.keys()].sort();
+    const i = ids.indexOf(id);
+    return (i < 0 ? ids.length : i) % GRID.length;
+  }
+
+  placeRemoteOnGrid(id) {
+    const rc = this.remotes.get(id);
+    if (!rc) return;
+    const slot = GRID[this.raceSlot(id)];
+    const p = this.track.placeAt(this.track.length + slot.s, slot.lane);
+    rc.pos.set(p.x, 0, p.z);
+    rc.yaw = p.yaw;
+    rc.model.position.set(p.x, this.track.surfaceAt ? this.track.surfaceAt(this.track.length + slot.s, slot.lane) : 0, p.z);
+    rc.model.rotation.set(0, p.yaw, 0);
+  }
+
+  onNetStart(m) {
+    if (m.course && COURSES[m.course] && m.course !== this.course) this.setCourse(m.course, { silent: true });
+    this.beginMultiRace(m.course || this.course);
+  }
+
+  onNetCourse(c) {
+    if (!COURSES[c] || c === this.course) return;
+    this.setCourse(c);
+    this.buildLobbyCourses();
+  }
+
+  hostStartRace() {
+    if (!this.net.host || !this.net.room) return;
+    this.ensureName();
+    this.net.requestStart(this.course);
+    // 초대받은 사람들이 메시지를 받을 시간을 살짝 두고 출발
+    setTimeout(() => this.beginMultiRace(this.course), 700);
+  }
+
+  /* ── 실제 레이스 ─────────────────────────────────── */
+  onAgain() {
+    if (this.raceMode === 'multi') {
+      this.el.result.classList.add('hidden');
+      this.state = 'lobby';
+      this.openLobby();
+      this.resetGrid();
+      this.net.startHeartbeat();
+      return;
+    }
+    this.startRace();
+  }
+
+  localState() {
+    const p = this.player;
+    if (!p) return null;
+    return {
+      x: Math.round(p.pos.x * 100) / 100,
+      y: Math.round(p.y * 100) / 100,
+      z: Math.round(p.pos.z * 100) / 100,
+      yaw: Math.round(p.yaw * 1000) / 1000,
+      sp: Math.round(p.speed * 100) / 100,
+      vl: Math.round(p.vLat * 100) / 100,
+      rl: Math.round(p.roll * 1000) / 1000,
+      p: Math.round(p.pitch * 1000) / 1000,
+      sv: Math.round(p.steerVisual * 100) / 100,
+      dr: p.drifting ? 1 : 0,
+      bt: Math.round(p.boostTimer * 100) / 100,
+      br: p.brake > 0.5 ? 1 : 0,
+      rv: p.reversing ? 1 : 0,
+      car: p.spec.id,
+      name: this.playerName,
+      lap: this.lapIndex,
+      ps: Math.round(p.progressS * 10) / 10,
+      fin: this.state === 'finished' ? 1 : 0,
+    };
   }
 
   /* ── 코스 ─────────────────────────────────────────────── */
@@ -319,7 +734,7 @@ class Game {
   }
 
   /** 코스 교체 — 트랙·차량·AI·지도를 새 코스로 다시 만든다 */
-  setCourse(id) {
+  setCourse(id, opts = {}) {
     if (!COURSES[id] || id === this.course) return;
     this.course = id;
     localStorage.setItem('drift.course', id);
@@ -331,6 +746,12 @@ class Game {
       this.disposeModel(a.model);
     }
     this.ai = [];
+    for (const rc of this.remotes.values()) {
+      this.scene.remove(rc.model);
+      rc.dispose();
+    }
+    this.remotes.clear();
+    this.remoteList = [];
     if (this.player) {
       this.scene.remove(this.player.model);
       this.disposeModel(this.player.model);
@@ -351,9 +772,14 @@ class Game {
     this.createAI();
     this.resetGrid();
     this.ai.forEach((a) => { a.model.visible = this.state !== 'menu'; });
+    if (this.net.room) {
+      for (const p of this.net.peers.values()) this.ensureRemote(p);
+    }
     this.updateCamera(0.016);
     this.updateSun();
     this.updateMenuLabels();
+    if (this.el.lobbyCourses && this.el.lobby) this.buildLobbyCourses();
+    if (this.el.lobbyLink) this.el.lobbyLink.value = inviteLink(this.net.room, this.course);
   }
 
   buildCards() {
@@ -402,6 +828,7 @@ class Game {
     this.resetGrid();
     this.buildCards();
     if (this.state === 'menu') this.ai.forEach((a) => { a.model.visible = false; });
+    if (this.net && this.net.room) this.net.updateProfile({ carId: spec.id, color: spec.ui });
   }
 
   createAI() {
@@ -410,7 +837,8 @@ class Game {
       this.disposeModel(a.model);
     }
     this.ai = [];
-    const order = [0, 1, 2];
+    // 멀티플레이에서는 AI 라이벌을 만들지 않는다 — 접속한 사람끼리만 달린다
+    if (this.mode === 'multi' || this.raceMode === 'multi') return;
     const skills = [0.93, 0.985, 1.02];
     for (let k = 0; k < 3; k++) {
       const base = CARS[(this.selected + 1 + k) % CARS.length];
@@ -429,18 +857,27 @@ class Game {
 
   resetGrid() {
     if (!this.player) return;
-    const slot = GRID[PLAYER_SLOT];
-    this.player.reset(this.track.length + slot.s, slot.lane);
-    this.player.model.position.copy(this.player.pos);
-    this.player.model.rotation.set(0, this.player.yaw, 0);
-    this.ai.forEach((a, k) => {
-      const s = GRID[k];
-      a.reset(this.track.length + s.s, s.lane, 0);
-    });
+    if (this.raceMode === 'multi') {
+      const slot = GRID[this.raceSlot(this.net.id)];
+      this.player.reset(this.track.length + slot.s, slot.lane);
+      this.player.model.position.copy(this.player.pos);
+      this.player.model.rotation.set(0, this.player.yaw, 0);
+      for (const id of this.remotes.keys()) this.placeRemoteOnGrid(id);
+    } else {
+      const slot = GRID[PLAYER_SLOT];
+      this.player.reset(this.track.length + slot.s, slot.lane);
+      this.player.model.position.copy(this.player.pos);
+      this.player.model.rotation.set(0, this.player.yaw, 0);
+      this.ai.forEach((a, k) => {
+        const s = GRID[k];
+        a.reset(this.track.length + s.s, s.lane, 0);
+      });
+    }
     this.lapIndex = 0;
     this.raceTime = 0;
     this.lapStart = 0;
     this.lastLap = 0;
+    this.finishedTime = 0;
     this.cp = [false, false, false];
     this.prevS = this.player.progressS;
     this.effects.reset();
@@ -448,6 +885,11 @@ class Game {
 
   /* ── 화면 전환 ───────────────────────────────────────── */
   toMenu() {
+    if (this.raceMode === 'multi' && this.net.room) {
+      this.leaveRoom({ backToMenu: true });
+      return;
+    }
+    this.raceMode = 'solo';
     this.state = 'menu';
     this.manual = false;
     this.input.reset();
@@ -456,6 +898,9 @@ class Game {
     this.ai.forEach((a) => { a.model.visible = false; });
     this.hud.show(false);
     this.hud.countdown(null);
+    if (this.el.standings) this.el.standings.classList.add('hidden');
+    if (this.el.netPill) this.el.netPill.classList.add('hidden');
+    this.closeLobby();
     this.el.menu.classList.remove('hidden');
     this.el.pause.classList.add('hidden');
     this.el.result.classList.add('hidden');
@@ -464,6 +909,7 @@ class Game {
   }
 
   startRace() {
+    this.raceMode = 'solo';
     this.sfx.init();
     this.sfx.resume();
     this.createAI();
@@ -488,6 +934,45 @@ class Game {
     this.camLook.copy(this.player.pos);
   }
 
+  /** 멀티플레이 레이스 시작 (방장 신호 또는 내가 시작) */
+  beginMultiRace(course) {
+    if (!this.net.room) return;
+    if (course && COURSES[course] && course !== this.course) this.setCourse(course, { silent: true });
+    this.raceMode = 'multi';
+    this.createAI();                    // AI 0대
+    this.remoteList = [...this.remotes.values()];
+    this.resetGrid();
+    this.finishedTime = 0;
+    this.sfx.init();
+    this.sfx.resume();
+    this.state = 'countdown';
+    this.countdownT = 3.65;
+    this.lastCount = 4;
+    this.closeLobby();
+    this.el.menu.classList.add('hidden');
+    this.el.result.classList.add('hidden');
+    this.el.pause.classList.add('hidden');
+    this.hud.show(true);
+    this.hud.setLap(1, TOTAL_LAPS);
+    this.hud.setPos(this.net.peerCount, this.net.peerCount);
+    this.hud.setTime(0);
+    this.hud.setBest(this.bestLap);
+    if (this.el.netPill) {
+      this.el.netPill.classList.remove('hidden');
+      if (this.el.netText) this.el.netText.textContent = `${this.net.peerCount}명`;
+    }
+    this.camPos.set(
+      this.player.pos.x - Math.sin(this.player.yaw) * 9,
+      4.2,
+      this.player.pos.z - Math.cos(this.player.yaw) * 9
+    );
+    this.camLook.copy(this.player.pos);
+    // 상태 전송 시작 (16Hz)
+    this.net.startSyncing(() => (this.state === 'racing' || this.state === 'countdown' || this.state === 'finished' || this.state === 'paused'
+      ? this.localState() : null));
+    clearInterval(this.net.hbTimer);
+  }
+
   setPaused(p) {
     if (p && this.state === 'racing') {
       this.state = 'paused';
@@ -502,10 +987,15 @@ class Game {
   finishRace() {
     this.state = 'finished';
     this.manual = false;
+    this.finishedTime = this.raceTime || 0.001;
+    const total = this.racers().length;
+    if (this.raceMode === 'multi' && this.net.room) {
+      this.net.reportFinish(this.finishedTime, TOTAL_LAPS, this.playerName);
+    }
     const rank = this.rankOf(this.player);
     const rt = this.raceTime;
     document.getElementById('result-title').textContent = rank === 1 ? 'WINNER' : 'FINISH';
-    document.getElementById('r-pos').textContent = `${rank}위 / 4`;
+    document.getElementById('r-pos').textContent = `${rank}위 / ${total}`;
     document.getElementById('r-total').textContent = formatTime(rt);
     document.getElementById('r-best').textContent = this.bestLap ? formatTime(this.bestLap) : '--:--.--';
     document.getElementById('r-speed').textContent = `${Math.round(this.player.topSpeed)} km/h`;
@@ -514,11 +1004,30 @@ class Game {
     this.sfx.update({ active: false });
     this.sfx.blip(660, 0.2);
     setTimeout(() => this.sfx.blip(880, 0.3), 160);
+    this.renderResultStandings();
+  }
+
+  racers() {
+    return [this.player, ...this.ai, ...this.remoteList].filter(Boolean);
+  }
+
+  /** 결과 화면 순위표 — 멀티에서는 다른 사람 도착 기록이 올 때마다 갱신된다 */
+  renderResultStandings() {
+    const box = this.el.resultStandings;
+    if (!box) return;
+    const rows = this.standings();
+    box.innerHTML = rows.map((r, i) => {
+      const time = r.fin ? formatTime(r.fin) : (r.me && this.state === 'finished' ? '—' : '주행 중…');
+      return `<div class="rs-row${r.me ? ' me' : ''}">` +
+        `<b>${i + 1}</b><i style="background:${r.color}"></i>` +
+        `<span>${String(r.name || '레이서').replace(/[<>&]/g, '')}</span>` +
+        `<em>${time}</em></div>`;
+    }).join('');
   }
 
   /* ── 매 프레임 ──────────────────────────────────────── */
   step(dt) {
-    if (this.state === 'menu') {
+    if (this.state === 'menu' || this.state === 'lobby') {
       this.orbit += dt * 0.22;
       const c = this.player.pos;
       const portrait = this.camera.aspect < 0.85;
@@ -537,6 +1046,7 @@ class Game {
     }
 
     if (this.state === 'paused' || this.state === 'finished') {
+      if (this.raceMode === 'multi') this.updateRemotes(dt);
       this.effects.update(dt * 0.25);
       this.sfx.update({ active: false });
       return;
@@ -544,6 +1054,7 @@ class Game {
 
     if (this.state === 'countdown') {
       this.countdownT -= dt;
+      if (this.raceMode === 'multi') this.updateRemotes(dt);
       const n = Math.ceil(this.countdownT - 0.6);
       if (n !== this.lastCount) {
         this.lastCount = n;
@@ -569,6 +1080,7 @@ class Game {
 
     /* ── 주행 ─────────────────────────────────────────── */
     this.raceTime += dt;
+    if (this.raceMode === 'multi') this.updateRemotes(dt);
     const rawInput = this.debugInput ? { ...this.input.state(), ...this.debugInput } : this.input.state();
     const driving = { ...rawInput };
     this.player.update(dt, driving);
@@ -596,6 +1108,26 @@ class Game {
           this.wallSoundLock = true;
           setTimeout(() => { this.wallSoundLock = false; }, 240);
         }
+      } else if (ev.type === 'obstacle') {
+        // 바위·통나무·상자 — 파편과 먼지, 차체 흔들림
+        this.effects.debris(ev.x, 0.7, ev.z, ev.power, ev.kind);
+        this.effects.crashSpark(ev.x, 0.6, ev.z, Math.min(2.4, ev.power * 0.2));
+        this.shake = Math.max(this.shake, Math.min(1.0, 0.2 + ev.power * 0.05));
+        if (!this.wallSoundLock) {
+          this.sfx.crash();
+          this.wallSoundLock = true;
+          setTimeout(() => { this.wallSoundLock = false; }, 220);
+        }
+        if (ev.power > 3.5) this.hud.toast('장애물 충돌!', 900, '#ff8b3d');
+      } else if (ev.type === 'jump') {
+        this.effects.landing(ev.x, this.player.y, ev.z, 0.6);
+        this.sfx.blip(420, 0.12, 'square', 0.05);
+        this.hud.toast('JUMP!', 700, '#ffd166');
+      } else if (ev.type === 'land') {
+        this.effects.landing(ev.x, this.player.y, ev.z, ev.power * 0.5);
+        this.effects.dust(ev.x, ev.z, 0, 0);
+        this.shake = Math.max(this.shake, Math.min(0.7, ev.power * 0.06));
+        this.sfx.blip(150, 0.16, 'sine', 0.07);
       }
     }
 
@@ -604,8 +1136,9 @@ class Game {
     for (const a of this.ai) a.update(dt, others, true);
 
     // 차량끼리 충돌 (밀어내기·반발·속도 손실·스파크)
-    const carsAll = [this.player, ...this.ai];
+    const carsAll = [this.player, ...this.ai, ...this.remoteList];
     this.resolveCarContacts(carsAll);
+    if (this.raceMode === 'multi') this.resolveRemoteContacts();
 
     // 진행도·랩
     const L = this.track.length;
@@ -642,6 +1175,15 @@ class Game {
       const w = this.player.rearWheelWorld(1);
       this.effects.dust(w.x, w.z, -this.player.vel.x * 0.1, -this.player.vel.z * 0.1);
     }
+    // 진흙 웅덩이 — 바퀴에서 진흙이 튄다
+    if (this.player.inMud) {
+      this.player.mudSplash = Math.min(6, (this.player.mudSplash || 0) + dt * 40);
+      while (this.player.mudSplash > 1) {
+        this.player.mudSplash -= 1;
+        const w = this.player.rearWheelWorld(Math.random() < 0.5 ? 1 : -1);
+        this.effects.mudSplash(w.x, w.z, this.player.vel.x, this.player.vel.z);
+      }
+    }
     for (const a of this.ai) {
       this.effects.wheelTrail(a, 2, dt, 0.55);
     }
@@ -653,9 +1195,14 @@ class Game {
     this.hud.setLap(Math.max(1, this.lapIndex), TOTAL_LAPS);
     this.hud.setDrift(this.player.driftCharge, this.player.driftLevel, this.player.drifting);
     this.hud.setNitro(this.player.nitro);
-    this.hud.setPos(this.rankOf(this.player), 4);
+    this.hud.setPos(this.rankOf(this.player), Math.max(2, carsAll.length));
     this.hud.setGear(this.player.reversing, this.player.brake > 0.5);
     this.hud.update(dt, carsAll, 0);
+    this.standingsAt += dt;
+    if (this.standingsAt > 0.26) {
+      this.standingsAt = 0;
+      this.hud.setStandings(this.standings());
+    }
 
     // 사운드
     this.sfx.update({
@@ -752,7 +1299,73 @@ class Game {
     }
   }
 
+  /* ── 순위 · 스탠딩 ───────────────────────── */
+  rowOf(car, kind, name, lap, s, fin) {
+    return {
+      car, kind, name,
+      fin: fin || 0,
+      dist: (lap | 0) * this.track.length + (s || 0),
+      color: (car.spec && car.spec.ui) || '#ffffff',
+      me: kind === 'me',
+    };
+  }
+
+  standings() {
+    const rows = [this.rowOf(this.player, 'me', this.playerName || '나', this.lapIndex, this.player.progressS, this.finishedTime)];
+    for (const a of this.ai) rows.push(this.rowOf(a, 'ai', a.spec.name, a.lapIndex, a.s, 0));
+    for (const rc of this.remoteList) rows.push(this.rowOf(rc, 'net', rc.name, rc.lapIndex, rc.progressS, rc.finishTime || 0));
+    rows.sort((a, b) => {
+      if (a.fin && b.fin) return a.fin - b.fin;
+      if (a.fin) return -1;
+      if (b.fin) return 1;
+      return b.dist - a.dist;
+    });
+    return rows;
+  }
+
   rankOf(car) {
+    const rows = this.standings();
+    const i = rows.findIndex((r) => r.car === car);
+    return i < 0 ? 1 : i + 1;
+  }
+
+  /* ── 원격 차량 갱신 · 접촉 ─────────────────── */
+  updateRemotes(dt) {
+    if (!this.remotes.size) return;
+    const now = performance.now() / 1000;
+    for (const rc of this.remotes.values()) rc.update(dt, now, this.track);
+  }
+
+  resolveRemoteContacts() {
+    for (const rc of this.remotes.values()) {
+      const dx = this.player.pos.x - rc.pos.x;
+      const dz = this.player.pos.z - rc.pos.z;
+      const d = Math.hypot(dx, dz);
+      const min = 2.6;
+      if (d >= min || d < 1e-3) continue;
+      const nx = dx / d, nz = dz / d;
+      this.player.pos.x += nx * (min - d);
+      this.player.pos.z += nz * (min - d);
+      const vn = this.player.vel.x * nx + this.player.vel.z * nz;
+      if (vn < -0.6) {
+        const imp = -vn;
+        this.player.applyImpulse(nx * imp * 0.85, nz * imp * 0.85);
+        this.contacts++;
+        if (imp > 1.4) {
+          this.impacts++;
+          this.effects.crashSpark((this.player.pos.x + rc.pos.x) * 0.5, 0.55, (this.player.pos.z + rc.pos.z) * 0.5, Math.min(3, imp * 0.16));
+          this.shake = Math.max(this.shake, Math.min(0.9, 0.15 + imp * 0.05));
+          if (imp > 2.6 && !this.carCrashLock) {
+            this.sfx.crash();
+            this.carCrashLock = true;
+            setTimeout(() => { this.carCrashLock = false; }, 220);
+          }
+        }
+      }
+    }
+  }
+
+  rankOfOld(car) {
     const list = [this.player, ...this.ai];
     const dist = (c) => (c === this.player ? this.lapIndex : c.lapIndex) * this.track.length +
       (c === this.player ? c.progressS : c.s);
@@ -903,6 +1516,49 @@ try {
 /* ── 자동 검증 훅 ───────────────────────────────────────── */
 window.__drift = {
   game,
+  standings: () => game.standings().map((r) => ({ name: r.name, me: r.me, dist: Math.round(r.dist), fin: r.fin })),
+  multi: {
+    create: (name) => {
+      game.setMode('multi', { silent: true });
+      game.playerName = name || game.ensureName();
+      game.createRoom();
+      return game.net.room;
+    },
+    join: (code, name) => {
+      game.setMode('multi', { silent: true });
+      game.playerName = name || game.ensureName();
+      game.joinRoom(code);
+      return code;
+    },
+    leave: () => game.leaveRoom({ backToMenu: true }),
+    start: () => game.hostStartRace(),
+    status: () => ({
+      room: game.net.room,
+      host: game.net.host,
+      connected: game.net.connected,
+      broker: game.net.sock && game.net.sock.url,
+      peerCount: game.net.peerCount,
+      peers: [...game.net.peers.values()].map((p) => ({ id: p.id, name: p.name, car: p.car, host: p.host })),
+      mode: game.mode,
+      raceMode: game.raceMode,
+      state: game.state,
+    }),
+    lobby: () => ({
+      open: !game.el.lobby.classList.contains('hidden'),
+      code: game.el.lobbyCode && game.el.lobbyCode.textContent,
+      players: game.el.playerList ? game.el.playerList.innerText : '',
+      link: game.el.lobbyLink ? game.el.lobbyLink.value : '',
+    }),
+    remotes: () => [...game.remotes.values()].map((rc) => ({
+      id: rc.id, name: rc.name,
+      pos: [Math.round(rc.pos.x), Math.round(rc.pos.z)],
+      model: [Math.round(rc.model.position.x), Math.round(rc.model.position.z)],
+      y: Math.round(rc.y * 100) / 100,
+      lap: rc.lapIndex, ps: Math.round(rc.progressS), visible: rc.model.visible,
+    })),
+    aiCount: () => game.ai.length,
+    hudPlayers: () => game.hud.setStandings && game.standings().length,
+  },
   state: () => ({
     state: game.state,
     course: game.course,
@@ -940,6 +1596,7 @@ window.__drift = {
   manual: (v) => { game.manual = v; },
   // 검증용 — 렌더 루프를 멈추고 필요할 때 한 프레임만 그린다
   freeze: () => { cancelAnimationFrame(game.raf); game.raf = 0; },
+  resume: () => { if (!game.raf) { game.last = performance.now(); game.raf = requestAnimationFrame(game.loop); } },
   render: () => { game.renderer.render(game.scene, game.camera); },
   tick: (n = 1, dt = 1 / 60) => {
     for (let i = 0; i < n; i++) game.step(dt);
@@ -1017,20 +1674,29 @@ window.__drift = {
     let st = window.__drift.tick(120);
     push('가속·주행', st.kmh > 40 && isFinite(st.pos[0]) && isFinite(st.pos[2]), `kmh=${st.kmh.toFixed(1)}`);
 
-    // 2) 드리프트
+    // 2) 드리프트 — 옆으로 밀리지 않고 차가 도는 방향으로 깔끔하게 돈다
     g.debugInput = { steer: 0.42, drift: true, boost: false, brake: false };
     let sawDrift = false, maxDriftT = 0, maxLevel = 0;
+    const yaw0 = g.player.yaw;
+    let yawTurn = 0, maxLat = 0;
+    let prevYaw = g.player.yaw;
     for (let i = 0; i < 90; i++) {
       window.__drift.tick(1);
       if (g.player.drifting) sawDrift = true;
       maxDriftT = Math.max(maxDriftT, g.player.driftTime);
       maxLevel = Math.max(maxLevel, g.player.driftLevel);
+      maxLat = Math.max(maxLat, Math.abs(g.player.vLat));
+      let dy = g.player.yaw - prevYaw;
+      dy = ((dy + Math.PI) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2) - Math.PI;
+      yawTurn += Math.abs(dy);
+      prevYaw = g.player.yaw;
     }
     st = window.__drift.state();
     push('드리프트 진입', sawDrift && maxLevel >= 1, `driftTime=${maxDriftT.toFixed(2)} level=${maxLevel}`);
     push('스키드마크', st.skids > 0, `quads=${st.skids}`);
     push('연기 파티클', st.smoke > 0, `particles=${st.smoke}`);
-    push('슬립각', Math.abs(g.player.vLat) > 1.2, `vLat=${g.player.vLat.toFixed(2)}`);
+    push('드리프트 선회(차가 돈다)', yawTurn > 0.45, `회전=${(yawTurn * 180 / Math.PI).toFixed(0)}°`);
+    push('횡이탈 없음(옆으로 안 밀림)', maxLat < 2.8, `최대 횡속도=${maxLat.toFixed(2)}m/s (${(Math.atan2(maxLat, Math.max(8, Math.abs(g.player.speed))) * 180 / Math.PI).toFixed(1)}°)`);
 
     // 3) 미니 터보
     g.debugInput = { steer: 0, drift: false, boost: false, brake: false };

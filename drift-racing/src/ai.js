@@ -1,7 +1,7 @@
 // AI 라이벌 — 레이싱 라인 추종, 코너 속도 계산, 차선 회피·추월
-import THREE from './three.js?v=20261115f';
-import { buildCar, updateCarVisual, applyBodyAttitude } from './carModel.js?v=20261115f';
-import { clamp, damp, rand } from './util.js?v=20261115f';
+import THREE from './three.js?v=20261115g';
+import { buildCar, updateCarVisual, applyBodyAttitude } from './carModel.js?v=20261115g';
+import { clamp, damp, rand } from './util.js?v=20261115g';
 
 export class AICar {
   constructor(spec, track, { skill = 1, startS = 0, lane = 0, lapIndex = 0 } = {}) {
@@ -116,6 +116,23 @@ export class AICar {
       }
     }
     this.targetLane = clamp(this.targetLane, -this.track.halfWidth + 2.4, this.track.halfWidth - 2.4);
+
+    // 장애물(바위·통나무·상자) 회피 — 앞쪽 같은 라인에 있으면 빈 라인으로 비켜간다
+    if (this.track.obstaclesNear && this.track.obstacles && this.track.obstacles.length && raceStarted) {
+      const look = 20 + this.speed * 1.15;
+      const near = this.track.obstaclesNear((this.s + look * 0.45) % L, this.lane,
+        Math.round(look / 2 / Math.max(0.5, this.track.ds)) + 4);
+      for (const o of near) {
+        let gap = o.s - this.s;
+        if (gap < -L / 2) gap += L;
+        if (gap > L / 2) gap -= L;
+        if (gap > 3 && gap < look && Math.abs(o.lat - this.lane) < 4.4) {
+          const side = o.lat > 0 ? -1 : 1;
+          this.targetLane = clamp(o.lat + side * 6.4,
+            -this.track.halfWidth + 2.4, this.track.halfWidth - 2.4);
+        }
+      }
+    }
     this.lane = damp(this.lane, this.targetLane, 1.6, dt);
 
     // 속도
@@ -136,6 +153,11 @@ export class AICar {
       this.lapIndex += 1;
     }
     if (this.s < 0) this.s += L;
+
+    // 진흙에서는 무겹게 붙는다
+    if (this.track.mudAt && raceStarted && this.track.mudAt(this.s, this.lane)) {
+      this.speed = Math.max(0, this.speed - 7 * dt);
+    }
 
     // 충격 오프셋 감쇠 — 밀려나고 천천히 라인으로 복귀
     this.bumpT = Math.max(0, this.bumpT - dt);
@@ -171,12 +193,13 @@ export class AICar {
     this.vel.z = fwd.z * this.speed;
     this.speed = Math.hypot(this.vel.x, this.vel.z) || this.speed;
 
-    this.model.position.set(this.pos.x, this.track.heightAt(this.s, this.lane), this.pos.z);
+    const surf = this.track.surfaceAt ? this.track.surfaceAt(this.s, this.lane) : this.track.heightAt(this.s, this.lane);
+    this.model.position.set(this.pos.x, surf, this.pos.z);
     this.model.rotation.y = this.yaw;
-    const gh = this.track.heightAt(this.s, this.lane);
+    const gh = surf;
     this.model.rotation.x = damp(
       this.model.rotation.x,
-      -Math.atan2(this.track.heightAt(this.s + 1.35, this.lane) - gh, 2.8),
+      -Math.atan2((this.track.surfaceAt ? this.track.surfaceAt(this.s + 1.35, this.lane) : this.track.heightAt(this.s + 1.35, this.lane)) - gh, 2.8),
       7, dt
     );
     // 차체 롤도 주행 속도에 비례 — 저속 코너에서는 거의 수평, 고속 코너에서만 기운다

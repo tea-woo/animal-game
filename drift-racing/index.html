@@ -10,7 +10,7 @@
 <meta name="description" content="DRIFT LEGEND — 아이폰에서 터치로 즐기는 3D 드리프트 레이싱" />
 <title>DRIFT LEGEND · 3D 드리프트 레이싱</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏎️</text></svg>" />
-<link rel="stylesheet" href="./style.css?v=20261115f" />
+<link rel="stylesheet" href="./style.css?v=20261115g" />
 <script type="importmap">
 {
   "imports": {
@@ -38,14 +38,38 @@
     <div class="menu-wrap">
       <header class="menu-head">
         <div class="logo">DRIFT<span>LEGEND</span></div>
-        <p class="tagline" id="tagline">아스팔트 서킷 · 3랩 · 4대 경쟁</p>
+        <p class="tagline" id="tagline">아스팔트 서킷 · 2.4km · 3랩</p>
       </header>
+
+      <div class="mode-switch" id="mode-switch" role="group" aria-label="플레이 모드">
+        <button class="mode-btn sel" data-mode="solo" type="button">
+          <b>혼자 하기</b><span>AI 라이벌 3대와 레이스</span>
+        </button>
+        <button class="mode-btn" data-mode="multi" type="button">
+          <b>같이 하기</b><span>가족과 실시간 대결</span>
+        </button>
+      </div>
 
       <div class="courses" id="course-list" role="group" aria-label="코스 선택"><!-- 코스 카드 동적 생성 --></div>
 
       <div class="cars" id="car-list"><!-- 카드 동적 생성 --></div>
 
-      <div class="menu-actions">
+      <div class="multi-panel hidden" id="multi-panel">
+        <label class="field">
+          <span>내 이름</span>
+          <input id="name-input" maxlength="10" placeholder="레이서" autocomplete="off" autocapitalize="off" spellcheck="false" />
+        </label>
+        <div class="mp-btns">
+          <button id="create-room" class="btn secondary" type="button">방 만들기<span>초대 링크 공유</span></button>
+          <div class="join-row">
+            <input id="room-input" inputmode="numeric" maxlength="4" placeholder="방 코드 4자리" autocomplete="off" />
+            <button id="join-room" class="btn" type="button">입장</button>
+          </div>
+        </div>
+        <p class="hint-line">방을 만들면 4자리 코드와 초대 링크가 생겨. 가족이 링크를 열면 바로 같은 방에 들어와!</p>
+      </div>
+
+      <div class="menu-actions" id="solo-actions">
         <button id="start-btn" class="btn primary">START<span>레이스 시작</span></button>
         <div class="menu-meta">
           <span id="best-lap">베스트 랩 —</span>
@@ -54,6 +78,49 @@
       </div>
 
       <p class="hint-line">모바일: ◀ ▶ 조향 · DRIFT 코너 미끄러짐(정지 후 계속 누르면 후진) · BOOST 가속<br />PC: ← → / A D · Space 드리프트·후진 · Shift 부스트</p>
+    </div>
+  </div>
+
+  <!-- ── 멀티 대기실 ─────────────────────────────────── -->
+  <div id="lobby" class="screen overlay hidden">
+    <div class="panel wide lobby-panel">
+      <div class="lobby-head">
+        <div class="room-code">
+          <em>ROOM CODE</em>
+          <b id="lobby-code">----</b>
+        </div>
+        <label class="lobby-name">
+          <span>내 이름</span>
+          <input id="lobby-name" maxlength="10" placeholder="레이서" autocomplete="off" autocapitalize="off" spellcheck="false" />
+        </label>
+        <div class="lobby-state">
+          <span class="net-dot" id="lobby-dot"></span>
+          <span id="lobby-status">연결 중…</span>
+        </div>
+      </div>
+
+      <div class="lobby-link">
+        <input id="lobby-link" readonly aria-label="초대 링크" />
+        <button id="copy-link" class="btn small" type="button">링크 복사</button>
+        <button id="share-link" class="btn small" type="button">공유</button>
+      </div>
+
+      <div class="lobby-cols">
+        <div class="lobby-players">
+          <h3>참가자 <span id="lobby-count">1/4</span></h3>
+          <ul id="player-list"></ul>
+        </div>
+        <div class="lobby-course">
+          <h3>코스 <em id="lobby-course-note">방장이 선택</em></h3>
+          <div class="courses compact" id="lobby-courses"></div>
+        </div>
+      </div>
+
+      <div class="lobby-btns">
+        <button id="lobby-start" class="btn primary" type="button">레이스 시작</button>
+        <button id="lobby-leave" class="btn" type="button">나가기</button>
+      </div>
+      <p class="hint-line" id="lobby-hint">가족이 초대 링크를 열면 자동으로 이 방에 들어와요.</p>
     </div>
   </div>
 
@@ -66,7 +133,11 @@
         <b id="time-text">0:00.00</b>
         <span id="best-text">BEST --:--.--</span>
       </div>
+      <div class="pill net hidden" id="net-pill"><em>LIVE</em><b id="net-text">1</b></div>
     </div>
+
+    <!-- 순위표 -->
+    <div id="standings" class="standings hidden"></div>
 
     <!-- 코스 전체 지도 -->
     <div id="minimap-wrap">
@@ -135,6 +206,7 @@
         <div><em>베스트 랩</em><b id="r-best">0:00.00</b></div>
         <div><em>최고 속도</em><b id="r-speed">0 km/h</b></div>
       </div>
+      <div id="result-standings" class="result-standings"></div>
       <div class="result-btns">
         <button class="btn primary" id="again-btn">한 번 더</button>
         <button class="btn" id="result-garage">차량 변경</button>
@@ -160,7 +232,7 @@
     if (l) l.classList.add('hidden');
   };
   window.addEventListener('error', (e) => { if (!window.__driftReady) fail(e.message || e.error); });
-  import('./src/main.js?v=20261115f').catch((err) => fail(err && (err.stack || err.message) || err));
+  import('./src/main.js?v=20261115g').catch((err) => fail(err && (err.stack || err.message) || err));
 </script>
 </body>
 </html>

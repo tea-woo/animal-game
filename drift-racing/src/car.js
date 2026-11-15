@@ -5,9 +5,9 @@
 //   left(yaw) = (cos yaw, -sin yaw) … 차의 왼쪽 (모델 로컬 +X)
 //   input.steer = +1 → 오른쪽(우회전), -1 → 왼쪽(좌회전)
 //   yaw 를 증가시키면 정면이 left 쪽으로 돌므로, 우회전은 yawRate < 0 이다.
-import THREE from './three.js?v=20261115f';
-import { buildCar, updateCarVisual, applyBodyAttitude } from './carModel.js?v=20261115f';
-import { clamp, damp, TAU } from './util.js?v=20261115f';
+import THREE from './three.js?v=20261115g';
+import { buildCar, updateCarVisual, applyBodyAttitude } from './carModel.js?v=20261115g';
+import { clamp, damp, TAU } from './util.js?v=20261115g';
 
 const WHEELBASE = 2.7;
 const REVERSE_MAX = 12.5;
@@ -57,6 +57,15 @@ export class Car {
     this.reverseLock = 0;
     this.impact = 0;
     this.hitFlash = 0;
+    this.driftVis = 0;
+    // 수직 운동 (오프로드 점프대·착지)
+    this.y = 0;
+    this.vy = 0;
+    this.airborne = false;
+    this.climb = 0;
+    this.lastSurf = null;
+    this.inMud = false;
+    this.mudSplash = 0;
   }
 
   reset(s = 0, lateral = 0) {
@@ -93,12 +102,29 @@ export class Car {
     this.roll = 0;
     this.pitch = 0;
     this.accelLong = 0;
-    this.model.position.set(this.pos.x, this.track.heightAt(s, lateral), this.pos.z);
+    this.driftVis = 0;
+    this.y = 0;
+    this.vy = 0;
+    this.airborne = false;
+    this.climb = 0;
+    this.lastSurf = null;
+    this.inMud = false;
+    this.mudSplash = 0;
+    this.model.position.set(this.pos.x, this.surfaceNow(), this.pos.z);
     this.model.rotation.set(0, this.yaw, 0);
     applyBodyAttitude(this.model, 0, 0);
   }
 
   get kmh() { return Math.hypot(this.vel.x, this.vel.z) * 3.6; }
+
+  /** 현재 위치의 노면 높이(램프 포함) */
+  surfaceNow() {
+    const t = this.track;
+    const y = t.surfaceAt ? t.surfaceAt(this.progressS, this.lat) : t.heightAt(this.progressS, this.lat);
+    this.y = y;
+    this.lastSurf = y;
+    return y;
+  }
 
   /** 차량 충돌 임펄스 — 속도 변화 + 그립에 먹히지 않는 넉백 + 차체 흔들림 */
   applyImpulse(vx, vz) {
@@ -139,6 +165,8 @@ export class Car {
     const absLat = Math.abs(proj.lat);
     const offRoad = absLat > t.halfWidth + 0.4;
     const wallLimit = t.railOff - 1.0;
+    const mudNow = t.mudAt ? t.mudAt(this.progressS, this.lat) : null;
+    this.inMud = !!mudNow;
 
     const spec = this.spec;
     const steer = clamp(input.steer || 0, -1, 1);
@@ -199,10 +227,11 @@ export class Car {
     }
     if (boosting && !this.reversing && !driftBrake) vLong += 17 * dt;
 
-    // 저항
-    const drag = offRoad ? 2.6 : 0.55;
+    // 저항 (진흙에서는 무겁게 붙는다)
+    const drag = (offRoad ? 2.6 : 0.55) * (mudNow ? 4.2 : 1);
     vLong -= vLong * drag * dt * 0.1;
     vLong -= Math.sign(vLong) * 0.42 * dt;
+    if (mudNow) vLong -= vLong * 0.5 * dt;
     vLong = clamp(vLong, -REVERSE_MAX, maxSpeed);
     this.brake = (input.brake || driftBrake || (this.reversing && vLong > 0.4)) ? 1 : 0;
 
@@ -240,6 +269,8 @@ export class Car {
     // 우조향(+1)이면 우회전 → yawRate < 0 (후진 중에는 yaw 부호가 뒤집혀
     //  뒷바퀴가 조향 쪽으로 흐른다 = 차체 뒷부분이 화면에서 누른 쪽으로 간다)
     let yawRate = -(vLong / WHEELBASE) * Math.tan(maxSteer * this.steerVisual);
+    // DRIFT 홀드 중에는 일반 조향보다 더 날카롭게 코너 안쪽으로 감아 돈다
+    if (this.drifting) yawRate *= 1.28;
     if (this.reversing) yawRate *= 0.8;
 
     // 횡가속 한계 — 예전 값(24/27 m/s²)은 중속에서도 초당 80~100°씩 머리가 팽이처럼
@@ -247,22 +278,27 @@ export class Car {
     const gripBase = 19.5 * spec.grip;
     // 드리프트는 접지 선회보다 확실히 더 잘 감아 돌아야 한다 — 예전 22.5 는 타이트한 코너에서
     // 회전이 모자라 차가 코너 바깥으로 밀려 나가 가드레일로 직행했다.
-    const latAccelCap = (this.drifting ? 28 * spec.driftGrip : gripBase) * (offRoad ? 0.5 : 1);
+    const latAccelCap = (this.drifting ? 34 * spec.driftGrip : gripBase) * (offRoad ? 0.5 : 1);
     const cap = latAccelCap / Math.max(7, Math.abs(vLong));
     yawRate = clamp(yawRate, -cap, cap);
+    // 공중에서는 조종이 거의 들지 않는다
+    if (this.airborne) yawRate *= 0.22;
 
-    /* ── 접지력 / 드리프트 슬립 ───────────────────────── */
-    if (this.drifting) {
-      // 차체는 코너 안쪽을 향하고 진행 방향은 살짝 바깥으로 흐른다 (슬립각 12~19도)
-      const target = this.driftSlipTarget(this.steerVisual, yawRate);
-      vLat = damp(vLat, target, SLIP_DAMP, dt);
-      // 감속·충돌로 전진 속도가 떨어질 때 슬립이 각도만 커져 옆으로 눕는 것을 막는 상한(≈22°)
-      const latLimit = Math.abs(vLong) * 0.40;
-      vLat = clamp(vLat, -latLimit, latLimit);
-      if (Math.abs(vLong) > 5) vLong += 2.2 * dt;
+    /* ── 접지력 / 드리프트 ─────────────────────── */
+    if (this.airborne) {
+      // 공중 — 속도 벡터 그대로 나아간다 (조종은 거의 들지 않는다)
+      vLat *= Math.exp(-0.4 * dt);
     } else {
-      const grip = offRoad ? 4.5 : 11.5;
-      vLat *= Math.exp(-grip * dt);
+      // 드리프트 중에도 차가 옆으로 밀리지 않는다 — 카트라이더·아스팔트처럼
+      //  차가 도는 방향 그대로 깔끔하게 커브를 돌아나간다(빠른 횡감쇠).
+      //  드리프트의 맛은 '더 날카로운 선회 + 차체 연출 + 스키드/미니터보'로 낸다.
+      const gripping = this.drifting
+        ? 16.5
+        : (mudNow ? 2.4 : offRoad ? 4.5 : 11.5);
+      vLat *= Math.exp(-gripping * dt);
+      const latLimit = Math.abs(vLong) * 0.18;
+      vLat = clamp(vLat, -latLimit, latLimit);
+      if (this.drifting && Math.abs(vLong) > 5) vLong += 2.2 * dt;
     }
 
     // 회전 전 축 기준으로 월드 속도 재구성
@@ -327,6 +363,78 @@ export class Car {
     this.hitFlash = Math.max(0, this.hitFlash - dt * 3.2);
     this.impact = 0;
 
+    /* ── 오프로드 장애물 충돌 (바위·통나무·상자) ────── */
+    if (t.obstaclesNear && t.obstacles.length) {
+      const near = t.obstaclesNear(this.progressS, this.lat, 9);
+      for (let i = 0; i < near.length; i++) {
+        const o = near[i];
+        const dx = this.pos.x - o.x, dz = this.pos.z - o.z;
+        const rad = o.r + 1.2;
+        const d2 = dx * dx + dz * dz;
+        if (d2 > rad * rad || d2 < 1e-5) continue;
+        const d = Math.sqrt(d2);
+        const nx = dx / d, nz = dz / d;
+        this.pos.x += nx * (rad - d);
+        this.pos.z += nz * (rad - d);
+        const vn = this.vel.x * nx + this.vel.z * nz;
+        if (vn < -0.5) {
+          const imp = -vn;
+          // 반사 + 큰 속도 손실 — 부딫히면 확 튕겨 나간다
+          this.vel.x = (this.vel.x - 1.5 * vn * nx) * 0.52;
+          this.vel.z = (this.vel.z - 1.5 * vn * nz) * 0.52;
+          const push = Math.min(7.5, imp * 0.55);
+          this.knock.x += nx * push;
+          this.knock.z += nz * push;
+          this.knockT = 0.5;
+          this.impact = imp;
+          this.hitFlash = 1;
+          this.drifting = false;
+          this.driftTime = 0;
+          if (imp > 1.0) {
+            this.events.push({ type: 'obstacle', x: o.x, z: o.z, power: imp, kind: o.kind });
+          }
+        }
+      }
+    }
+
+    /* ── 수직 운동 — 점프대에서 뛰어오르고 착지한다 ── */
+    const surf = t.surfaceAt
+      ? t.surfaceAt(this.progressS, this.lat)
+      : t.heightAt(this.progressS, this.lat);
+    if (this.lastSurf == null) this.lastSurf = surf;
+    const dSurf = (surf - this.lastSurf) / Math.max(dt, 1e-4);
+    this.lastSurf = surf;
+    if (!this.airborne) {
+      if (this.climb > 0.9 && dSurf < -6 && Math.abs(vLong) > 6) {
+        this.airborne = true;
+        this.vy = Math.min(13, this.climb * 1.25 + 0.6);
+        this.y = surf + 0.05;
+        this.events.push({ type: 'jump', x: this.pos.x, z: this.pos.z });
+      } else {
+        this.climb = damp(this.climb, Math.max(0, dSurf), 14, dt);
+        this.y = surf;
+      }
+    }
+    if (this.airborne) {
+      this.vy -= 27 * dt;
+      this.y += this.vy * dt;
+      if (this.y <= surf) {
+        const land = -this.vy;
+        this.y = surf;
+        this.vy = 0;
+        this.airborne = false;
+        this.climb = 0;
+        if (land > 1.5) {
+          this.events.push({ type: 'land', x: this.pos.x, z: this.pos.z, power: land });
+        }
+      }
+    }
+
+    /* ── 진흙을 지나면 튄다 ── */
+    if (mudNow && Math.hypot(this.vel.x, this.vel.z) > 4) {
+      this.mudSplash += dt * 30;
+    }
+
     /* ── 부스터 ───────────────────────────────────────── */
     if (input.boost && this.nitro > 0.02 && !this.reversing) {
       this.nitro = Math.max(0, this.nitro - dt * 0.3);
@@ -343,10 +451,12 @@ export class Car {
 
     /* ── 시각 반영 ────────────────────────────────────── */
     // 지면 높이(오프로드 굴곡)와 지형 경사를 차체 전체에 적용 — 바퀴는 노면을 따라간다
-    const gh = t.heightAt(this.progressS, this.lat);
-    const hF = t.heightAt(this.progressS + 1.35, this.lat);
-    const hR = t.heightAt(this.progressS - 1.45, this.lat);
-    const terrPitch = -Math.atan2(hF - hR, 2.8);
+    const gh = this.y;
+    const hF = t.surfaceAt ? t.surfaceAt(this.progressS + 1.35, this.lat) : t.heightAt(this.progressS + 1.35, this.lat);
+    const hR = t.surfaceAt ? t.surfaceAt(this.progressS - 1.45, this.lat) : t.heightAt(this.progressS - 1.45, this.lat);
+    const terrPitch = this.airborne
+      ? -Math.atan2(this.vy, Math.max(8, Math.abs(vLong)))
+      : -Math.atan2(hF - hR, 2.8);
     this.model.position.set(this.pos.x, gh, this.pos.z);
     this.model.rotation.y = this.yaw;
     this.model.rotation.x = damp(this.model.rotation.x, terrPitch, 9, dt);
@@ -370,8 +480,13 @@ export class Car {
     const pitchTarget = clamp(-this.accelLong * 0.0028, -PITCH_MAX, PITCH_MAX);
     this.pitch = damp(this.pitch, pitchTarget, 8, dt);
 
-    // 롤·피치는 차체에만 — 바퀴는 지면에 붙어 있다
+    // 롤·피치·드리프트 연출은 차체에만 — 바퀴는 지면에 붙어 있다
     applyBodyAttitude(this.model, this.roll, this.pitch);
+    // 아케이드 드리프트 연출 — 차체만 코너 안쪽으로 살짝(최대 11°) 더 틀어 보인다
+    const driftVisTarget = this.drifting ? clamp(yawRate * 0.15, -0.20, 0.20) : 0;
+    this.driftVis = damp(this.driftVis, driftVisTarget, this.drifting ? 10 : 7, dt);
+    const bodyGroup = this.model.userData && this.model.userData.body;
+    if (bodyGroup) bodyGroup.rotation.y = this.driftVis;
     updateCarVisual(this, dt);
   }
 

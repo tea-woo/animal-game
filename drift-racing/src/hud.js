@@ -1,5 +1,5 @@
 // HUD — 랩·순위·기록·속도계·드리프트/니트로 게이지·코스 미니맵
-import { clamp, formatTime } from './util.js?v=20261115f';
+import { clamp, formatTime } from './util.js?v=20261115g';
 
 const DEFAULT_PAL = {
   bg: 'rgba(10, 17, 28, 0.55)',
@@ -30,6 +30,9 @@ export class Hud {
       minimap: document.getElementById('minimap'),
       mmTag: document.getElementById('mm-tag'),
       gear: document.getElementById('gear-badge'),
+      standings: document.getElementById('standings'),
+      netPill: document.getElementById('net-pill'),
+      netText: document.getElementById('net-text'),
     };
     this.ctx = this.el.minimap.getContext('2d');
     this.gearOn = null;
@@ -86,6 +89,9 @@ export class Hud {
 
     // 바탕 그늘 (트랙 안쪽을 살짝 채워 코스 형태를 또렷하게)
     const pal = (this.track.spec && this.track.spec.minimap) || DEFAULT_PAL;
+    // 코스가 길어질수록 지도 축척이 작아진다 → 선 두께도 함께 줄여 형태가 뭉개지지 않게
+    const ws = clamp(scale / 0.62, 0.40, 1.3);
+    this.ws = ws;
     path();
     g.fillStyle = pal.bg;
     g.fill();
@@ -93,15 +99,15 @@ export class Hud {
     // 코스 외곽 → 노면
     path();
     g.strokeStyle = pal.outer;
-    g.lineWidth = 17;
+    g.lineWidth = 17 * ws;
     g.stroke();
     path();
     g.strokeStyle = pal.road;
-    g.lineWidth = 11;
+    g.lineWidth = 11 * ws;
     g.stroke();
     path();
     g.strokeStyle = pal.line;
-    g.lineWidth = 4.2;
+    g.lineWidth = Math.max(1.8, 4.2 * ws);
     g.shadowColor = pal.glow;
     g.shadowBlur = 7;
     g.stroke();
@@ -113,16 +119,17 @@ export class Hud {
     g.save();
     g.translate(st.x, st.y);
     g.rotate(Math.atan2(p0.p.tz, p0.p.tx));
-    const cw = 4.6;
+    const cw = Math.max(1.8, 4.6 * ws);
+    const half = Math.max(4, 9.2 * ws);
     for (let i = 0; i < 2; i++) {
       for (let k = 0; k < 4; k++) {
         g.fillStyle = (i + k) % 2 ? '#0a0f18' : '#ffffff';
-        g.fillRect(-cw + i * cw, -9.2 + k * cw, cw, cw);
+        g.fillRect(-cw + i * cw, -half + k * cw, cw, cw);
       }
     }
     g.strokeStyle = 'rgba(255, 255, 255, 0.9)';
     g.lineWidth = 1.2;
-    g.strokeRect(-cw, -9.2, cw * 2, cw * 4);
+    g.strokeRect(-cw, -half, cw * 2, half * 2);
     g.restore();
 
     this.miniBase = c;
@@ -190,8 +197,34 @@ export class Hud {
     el.classList.toggle('on', !!reversing);
   }
 
-  countdown(text, go = false) {
-    const el = this.el.countdown;
+  /* ── 순위표 (접속한 플레이어 · AI) ───────────────── */
+  setStandings(rows) {
+    const box = this.el.standings;
+    if (!box) return;
+    if (!rows || rows.length < 2) {
+      box.classList.add('hidden');
+      return;
+    }
+    box.classList.remove('hidden');
+    let html = '';
+    for (let i = 0; i < rows.length; i++) {
+      const r = rows[i];
+      const gap = i === 0 ? '' : (r.fin ? formatTime(r.fin) : `+${Math.max(0, Math.round((rows[0].dist - r.dist)))}m`);
+      html += `<div class="st-row${r.me ? ' me' : ''}">` +
+        `<b>${i + 1}</b>` +
+        `<i style="background:${r.color}"></i>` +
+        `<span>${String(r.name || '레이서').slice(0, 10).replace(/[<>&]/g, '')}</span>` +
+        `<em>${gap}</em></div>`;
+    }
+    box.innerHTML = html;
+  }
+
+  setNet(count) {
+    if (!this.el.netText) return;
+    this.el.netText.textContent = `${count}명`;
+  }
+
+  countdown(text, go = false) {    const el = this.el.countdown;
     if (text == null) {
       el.classList.add('hidden');
       el.textContent = '';
@@ -230,7 +263,7 @@ export class Hud {
       const q = this.toMap(car.pos.x, car.pos.z);
       const col = (car.spec && car.spec.ui) || '#ffffff';
       g.beginPath();
-      g.arc(q.x, q.y, 5.4, 0, Math.PI * 2);
+      g.arc(q.x, q.y, 5.4 * Math.max(0.75, Math.min(1.15, this.ws || 1)), 0, Math.PI * 2);
       g.fillStyle = col;
       g.fill();
       g.lineWidth = 2;

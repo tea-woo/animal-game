@@ -1,7 +1,7 @@
 // 이펙트 — 타이어 스키드마크, 드리프트 연기, 니트로 화염·불꽃
-import THREE from './three.js?v=20261115f';
-import { smokeTexture } from './textures.js?v=20261115f';
-import { rand } from './util.js?v=20261115f';
+import THREE from './three.js?v=20261115g';
+import { smokeTexture } from './textures.js?v=20261115g';
+import { rand } from './util.js?v=20261115g';
 
 /* ── 스키드마크 (링 버퍼) ─────────────────────────────── */
 export class SkidMarks {
@@ -235,6 +235,50 @@ export class Effects {
   dust(x, z, vx, vz) {
     this.smoke.spawn(x, 0.2, z, vx + rand(-1, 1), rand(0.6, 2), vz + rand(-1, 1),
       new THREE.Color(0xa8946e), rand(0.8, 1.5), rand(0.4, 0.9), 2.4);
+  }
+
+  /* 진흙·물 튐 — 웅덩이를 지날 때 차폭에서 튀어 오른다 */
+  mudSplash(x, z, vx, vz) {
+    this.smoke.spawn(
+      x + rand(-0.5, 0.5), rand(0.15, 0.5), z + rand(-0.5, 0.5),
+      vx * 0.35 + rand(-1.8, 1.8), rand(1.4, 3.4), vz * 0.35 + rand(-1.8, 1.8),
+      new THREE.Color(0x4c3a22), rand(0.5, 1.05), rand(0.3, 0.6), 1.8
+    );
+  }
+
+  /* 부딫힘 파편 — 바위·통나무·상자에 부딫할 때 흙과 나무 조각 */
+  debris(x, y, z, power = 1, kind = 'rock') {
+    const p = Math.min(3, Math.max(0.5, power));
+    const wood = kind === 'log' || kind === 'crate';
+    const col = wood ? new THREE.Color(0xa5763f) : new THREE.Color(0x9b9184);
+    const n = Math.round(6 + p * 5);
+    for (let i = 0; i < n; i++) {
+      const a = rand(0, Math.PI * 2);
+      const sp = rand(2, 5) * (0.6 + p * 0.3);
+      this.smoke.spawn(
+        x + rand(-0.4, 0.4), y + rand(0.2, 0.9), z + rand(-0.4, 0.4),
+        Math.cos(a) * sp, rand(1.2, 3.6), Math.sin(a) * sp,
+        col, rand(0.35, 0.8), rand(0.35, 0.8), 0.9
+      );
+    }
+    for (let i = 0; i < 4; i++) {
+      this.smoke.spawn(x, y + 0.3, z, rand(-2.6, 2.6), rand(0.6, 1.8), rand(-2.6, 2.6),
+        new THREE.Color(0xb5a894), rand(0.9, 1.7), rand(0.3, 0.7), 2.2);
+    }
+  }
+
+  /* 착지 먼지 — 점프 후 땅에 닿을 때 퍼지는 둥근 먼지 */
+  landing(x, y, z, power = 1) {
+    const n = Math.round(8 + Math.min(3, power) * 4);
+    for (let i = 0; i < n; i++) {
+      const a = (i / n) * Math.PI * 2 + rand(-0.3, 0.3);
+      const sp = rand(2.2, 4.4);
+      this.smoke.spawn(
+        x, y + 0.15, z,
+        Math.cos(a) * sp, rand(0.5, 1.4), Math.sin(a) * sp,
+        new THREE.Color(0xb0a189), rand(0.9, 1.6), rand(0.4, 0.8), 2.6
+      );
+    }
   }
 
   // 충돌 스파크 — 차량끼리/가드레일 접촉 시
