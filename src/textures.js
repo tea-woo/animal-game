@@ -1,6 +1,6 @@
 // 털 · 비늘 재질 — 캔버스로 만든 방향성 털가닥 텍스처(map/bumpMap/roughnessMap)
 // 동물별로 한 번만 생성해 캐시한다. 256² 이하로 유지해 아이폰에서도 가볍다.
-import THREE from './three.js?v=20261115a';
+import THREE from './three.js?v=20261115b';
 
 const RECIPES = {
   'lion-coat': {
@@ -22,13 +22,13 @@ const RECIPES = {
     repeat: [2, 3],
   },
   'lion-mane': {
-    base: '#3f2410',
-    blotches: ['#57351a', '#2a170a', '#6a4220'],
+    base: '#6d4622',
+    blotches: ['#7d5429', '#5a3818', '#94662f'],
     strands: [
-      { color: '#5c3517', weight: 0.34, alpha: 0.6 },
-      { color: '#8a5a28', weight: 0.24, alpha: 0.55 },
-      { color: '#c08a44', weight: 0.22, alpha: 0.5 },
-      { color: '#20100a', weight: 0.2, alpha: 0.55 },
+      { color: '#8a5a28', weight: 0.34, alpha: 0.6 },
+      { color: '#b07c3a', weight: 0.24, alpha: 0.55 },
+      { color: '#c99a52', weight: 0.22, alpha: 0.5 },
+      { color: '#4a2c12', weight: 0.2, alpha: 0.55 },
     ],
     count: 1900,
     len: [10, 30],
@@ -110,9 +110,9 @@ const RECIPES = {
     repeat: [2, 2],
   },
   'tiger-coat': {
-    base: '#d9791f',
-    blotches: ['#e08a34', '#b85e12', '#f0a24a'],
-    pattern: { type: 'stripes', color: '#1a1008', count: 6, width: [0.05, 0.1], belly: 0.76, bellyColor: '#f3e7cf', wobble: 0.04, alpha: 0.86 },
+    base: '#cf7a28',
+    blotches: ['#dc8a36', '#b8631a', '#e79a44'],
+    pattern: { type: 'stripes', color: '#140d06', count: 7, width: [0.026, 0.062], belly: 0.76, bellyColor: '#f2e6cf', wobble: 0.05, alpha: 0.78 },
     strands: [
       { color: '#f2b260', weight: 0.4, alpha: 0.32 },
       { color: '#b85e12', weight: 0.4, alpha: 0.3 },
@@ -125,12 +125,12 @@ const RECIPES = {
     dirVar: 0.2,
     roughness: [160, 240],
     bump: 0.03,
-    repeat: [1, 1],
+    repeat: [1, 2],
   },
   'cheetah-coat': {
-    base: '#d7a25c',
-    blotches: ['#e2b478', '#c08d47', '#ecc98f'],
-    pattern: { type: 'spots', color: '#241a10', count: 240, size: [0.02, 0.04], belly: 0.7, bellyColor: '#f8f0df', alpha: 0.95 },
+    base: '#d9a862',
+    blotches: ['#e4bc82', '#c4954f', '#eccd9a'],
+    pattern: { type: 'spots', color: '#241a10', count: 620, size: [0.008, 0.017], belly: 0.74, bellyColor: '#f8f0df', alpha: 0.92 },
     strands: [
       { color: '#f0c68c', weight: 0.4, alpha: 0.3 },
       { color: '#b8843f', weight: 0.35, alpha: 0.3 },
@@ -143,7 +143,7 @@ const RECIPES = {
     dirVar: 0.2,
     roughness: [170, 245],
     bump: 0.03,
-    repeat: [1, 1],
+    repeat: [4, 4],
   },
   'elephant-hide': {
     base: '#8a8177',
@@ -672,11 +672,11 @@ function scaleCanvases(size, seed) {
   gc.fillRect(U(0.6), 0, U(0.3), size);
 
   // 등면 큰 검은 반점
-  for (let i = 0; i < 5; i++) {
-    const cx = U(0.25) + (rnd() - 0.5) * size * 0.09;
-    const cy = ((i + 0.5) / 5) * size + (rnd() - 0.5) * size * 0.05;
-    const w = size * (0.11 + rnd() * 0.05);
-    const h = size * (0.1 + rnd() * 0.06);
+  for (let i = 0; i < 6; i++) {
+    const cx = U(0.25) + (rnd() - 0.5) * size * 0.06;
+    const cy = ((i + 0.5) / 6) * size + (rnd() - 0.5) * size * 0.04;
+    const w = size * (0.075 + rnd() * 0.03);
+    const h = size * (0.07 + rnd() * 0.04);
     gc.save();
     gc.translate(cx, cy);
     gc.fillStyle = ANACONDA.dorsal;
@@ -685,17 +685,17 @@ function scaleCanvases(size, seed) {
     gc.fill();
     gc.restore();
   }
-  // 옆구리 주황 갈색 타원
-  for (let i = 0; i < 10; i++) {
-    const side = i % 2 === 0 ? 0.13 : 0.37;
-    const cx = U(side) + (rnd() - 0.5) * size * 0.05;
-    const cy = ((i + 0.5) / 10) * size + (rnd() - 0.5) * size * 0.04;
+  // 옆구리 노란 점 — 작고 촘촘하게
+  for (let i = 0; i < 90; i++) {
+    const side = rnd() < 0.5 ? 0.12 + rnd() * 0.06 : 0.33 + rnd() * 0.07;
+    const cx = U(side);
+    const cy = rnd() * size;
     gc.save();
     gc.translate(cx, cy);
-    gc.fillStyle = ANACONDA.flank;
-    gc.globalAlpha = 0.75;
+    gc.fillStyle = '#d8bb63';
+    gc.globalAlpha = 0.55 + rnd() * 0.3;
     gc.beginPath();
-    gc.ellipse(0, 0, size * (0.035 + rnd() * 0.02), size * (0.045 + rnd() * 0.025), (rnd() - 0.5) * 0.5, 0, Math.PI * 2);
+    gc.ellipse(0, 0, size * (0.006 + rnd() * 0.007), size * (0.008 + rnd() * 0.008), 0, 0, Math.PI * 2);
     gc.fill();
     gc.restore();
   }
@@ -794,6 +794,23 @@ export function scaleMaps() {
   };
   texCache.set('anaconda-skin', out);
   return out;
+}
+
+/** 털 뭉치 재질 — 무늬 텍스처를 곱하지 않고 정점 색만 쓴다 (뭉치가 검게 죽지 않도록) */
+export function clumpMaterial(key, opts = {}) {
+  const matKey = `clump|${key}|${opts.roughness ?? 0.95}`;
+  let m = matCache.get(matKey);
+  if (m) return m;
+  const maps = furMaps(key);
+  m = new THREE.MeshStandardMaterial({
+    vertexColors: true,
+    bumpMap: maps.bump,
+    bumpScale: (maps.bumpScale || 0.05) * 1.6,
+    roughness: opts.roughness ?? 0.95,
+    metalness: 0,
+  });
+  matCache.set(matKey, m);
+  return m;
 }
 
 /** 털 재질 (vertex color × 텍스처) */

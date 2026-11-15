@@ -1,5 +1,5 @@
 // 메시 생성 헬퍼 — 지오메트리/머티리얼을 캐시해 드로우콜과 메모리를 아낀다.
-import THREE from './three.js?v=20261115a';
+import THREE from './three.js?v=20261115b';
 
 const geoCache = new Map();
 const matCache = new Map();

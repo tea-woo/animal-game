@@ -1,9 +1,9 @@
 // 적 — 멧돼지 무리 (순찰/추격/돌진/기절/부활)
-import THREE from './three.js?v=20261115a';
-import { buildEnemy, collectMaterials, BIOME_MOBS } from './animals.js?v=20261115a';
-import { Animator } from './animation.js?v=20261115a';
-import { ARENA_RADIUS } from './world.js?v=20261115a';
-import { clamp, damp, dampAngle, rand, TAU, smoothstep } from './util.js?v=20261115a';
+import THREE from './three.js?v=20261115b';
+import { buildEnemy, collectMaterials, BIOME_MOBS } from './animals.js?v=20261115b';
+import { Animator } from './animation.js?v=20261115b';
+import { ARENA_RADIUS } from './world.js?v=20261115b';
+import { clamp, damp, dampAngle, rand, TAU, smoothstep } from './util.js?v=20261115b';
 
 function makeBarTexture() {
   const canvas = document.createElement('canvas');

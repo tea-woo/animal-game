@@ -1,14 +1,14 @@
 // 게임 부트스트랩 · 카메라 · 메인 루프
-import THREE from './three.js?v=20261115a';
-import { buildWorld, MAPS, ARENA_RADIUS } from './world.js?v=20261115a';
-import { VFX } from './vfx.js?v=20261115a';
-import { Sfx } from './audio.js?v=20261115a';
-import { Player } from './player.js?v=20261115a';
-import { EnemyManager } from './enemies.js?v=20261115a';
-import { UI } from './ui.js?v=20261115a';
-import { Input } from './input.js?v=20261115a';
-import { ANIMALS } from './animals.js?v=20261115a';
-import { clamp, damp, dampAngle } from './util.js?v=20261115a';
+import THREE from './three.js?v=20261115b';
+import { buildWorld, MAPS, ARENA_RADIUS } from './world.js?v=20261115b';
+import { VFX } from './vfx.js?v=20261115b';
+import { Sfx } from './audio.js?v=20261115b';
+import { Player } from './player.js?v=20261115b';
+import { EnemyManager } from './enemies.js?v=20261115b';
+import { UI } from './ui.js?v=20261115b';
+import { Input } from './input.js?v=20261115b';
+import { ANIMALS } from './animals.js?v=20261115b';
+import { clamp, damp, dampAngle } from './util.js?v=20261115b';
 
 class FakeInput {
   constructor() {

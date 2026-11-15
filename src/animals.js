@@ -1,8 +1,9 @@
 // 동물 모델 — 스윕/병합 조형 + 털·비늘 재질
-import THREE from './three.js?v=20261115a';
-import { merge, sweep, track, unitSphere, unitCone, unitBox, unitCyl, meshOf, vertexMaterial, TAU, shade } from './sculpt.js?v=20261115a';
-import { furMaterial, scaleMaterial, skinMaterial } from './textures.js?v=20261115a';
-import { clamp, lerp } from './util.js?v=20261115a';
+import THREE from './three.js?v=20261115b';
+import { merge, sweep, track, unitSphere, unitCone, unitBox, unitCyl, meshOf, vertexMaterial, TAU, shade } from './sculpt.js?v=20261115b';
+import { furMaterial, scaleMaterial, skinMaterial } from './textures.js?v=20261115b';
+import { clamp, lerp } from './util.js?v=20261115b';
+import { buildLion as bLion, buildTiger as bTiger, buildCheetah as bCheetah, buildWolf as bWolf, buildBear as bBear, buildPolarBear as bPolar, buildElephant as bElephant, buildRhino as bRhino, buildShark as bShark, buildOrca as bOrca, buildOctopus as bOctopus, buildAnaconda as bAnaconda } from './beasts.js?v=20261115b';
 
 const V = (x = 0, y = 0, z = 0) => new THREE.Vector3(x, y, z);
 const W = (r = 1, g = r, b = r) => new THREE.Color(r, g, b);
@@ -2400,7 +2401,7 @@ export const ANIMALS = {
       { id: 'pounce', impl: 'pounce', name: '맹수의 도약', short: '도약', icon: '🌀', key: 'L', cd: 7.5, desc: '앞으로 길게 도약해 착지 지점을 강하게 내리칩니다.' },
     ],
     anim: { gaitAmp: 0.62, bob: 0.05, sway: 0.055, gaitRate: 1.5, tailAmp: 0.32, headBob: 0.05 },
-    build: buildLion,
+    build: bLion,
   },
   tiger: {
     id: 'tiger',
@@ -2418,7 +2419,7 @@ export const ANIMALS = {
       { id: 'tigerroar', impl: 'roar', name: '호랑이 포효', short: '포효', icon: '📣', key: 'L', cd: 10, desc: '숲을 울리는 포효로 주변 적을 기절시킵니다.' },
     ],
     anim: { gaitAmp: 0.66, bob: 0.05, sway: 0.055, gaitRate: 1.55, tailAmp: 0.34, headBob: 0.05 },
-    build: buildTiger,
+    build: bTiger,
   },
   cheetah: {
     id: 'cheetah',
@@ -2436,7 +2437,7 @@ export const ANIMALS = {
       { id: 'cheetahpounce', impl: 'pounce', name: '사냥의 도약', short: '도약', icon: '🌀', key: 'L', cd: 7, desc: '멀리 뛰어올라 착지 지점의 적을 덮칩니다.' },
     ],
     anim: { gaitAmp: 0.8, bob: 0.06, sway: 0.04, gaitRate: 1.9, tailAmp: 0.42, headBob: 0.06 },
-    build: buildCheetah,
+    build: bCheetah,
   },
   elephant: {
     id: 'elephant',
@@ -2454,7 +2455,7 @@ export const ANIMALS = {
       { id: 'quake', impl: 'stomp', name: '대지 발구르기', short: '발구르기', icon: '💥', key: 'L', cd: 9, desc: '발을 구르며 반경 9m에 충격파를 일으켜 적을 기절시킵니다.' },
     ],
     anim: { gaitAmp: 0.42, bob: 0.05, sway: 0.06, gaitRate: 1.15, tailAmp: 0.22, headBob: 0.04 },
-    build: buildElephant,
+    build: bElephant,
   },
   rhino: {
     id: 'rhino',
@@ -2472,7 +2473,7 @@ export const ANIMALS = {
       { id: 'hornToss', impl: 'stomp', name: '땅뜨기', short: '땅뜨기', icon: '💥', key: 'L', cd: 8, desc: '뿔로 땅을 파올려 주변 적을 띄우고 기절시킵니다.' },
     ],
     anim: { gaitAmp: 0.46, bob: 0.05, sway: 0.07, gaitRate: 1.2, tailAmp: 0.18, headBob: 0.04 },
-    build: buildRhino,
+    build: bRhino,
   },
   wolf: {
     id: 'wolf',
@@ -2490,7 +2491,7 @@ export const ANIMALS = {
       { id: 'howl', impl: 'howl', name: '무리 울부짖기', short: '울부짖기', icon: '🐾', key: 'L', cd: 14, desc: '9초 동안 이동 속도와 공격력이 35% 증가합니다.' },
     ],
     anim: { gaitAmp: 0.72, bob: 0.05, sway: 0.045, gaitRate: 1.65, tailAmp: 0.36, headBob: 0.05 },
-    build: buildWolf,
+    build: bWolf,
   },
   bear: {
     id: 'bear',
@@ -2508,7 +2509,7 @@ export const ANIMALS = {
       { id: 'charge', impl: 'charge', name: '광폭 돌진', short: '돌진', icon: '🔥', key: 'L', cd: 10, desc: '앞으로 미친 듯이 돌진해 부딪히는 적을 날려버립니다.' },
     ],
     anim: { gaitAmp: 0.5, bob: 0.055, sway: 0.08, gaitRate: 1.3, tailAmp: 0.2, headBob: 0.04 },
-    build: buildBear,
+    build: bBear,
   },
   polarBear: {
     id: 'polarBear',
@@ -2526,7 +2527,7 @@ export const ANIMALS = {
       { id: 'frostRoar', impl: 'roar', name: '서리 포효', short: '포효', icon: '🌬️', key: 'L', cd: 11, desc: '차가운 포효로 주변 적을 얼려 기절시킵니다.' },
     ],
     anim: { gaitAmp: 0.5, bob: 0.055, sway: 0.075, gaitRate: 1.35, tailAmp: 0.18, headBob: 0.04 },
-    build: buildPolarBear,
+    build: bPolar,
   },
   anaconda: {
     id: 'anaconda',
@@ -2544,7 +2545,7 @@ export const ANIMALS = {
       { id: 'tailslam', impl: 'tailslam', name: '꼬리 강타', short: '꼬리', icon: '💢', key: 'L', cd: 7, desc: '꼬리를 크게 휘둘러 주변 적을 강하게 날려버립니다.' },
     ],
     anim: { gaitAmp: 0.05, bob: 0.02, sway: 0.02, gaitRate: 1.2, tailAmp: 0.2, headBob: 0.03, serpent: true },
-    build: buildAnaconda,
+    build: bAnaconda,
   },
   shark: {
     id: 'shark',
@@ -2562,7 +2563,7 @@ export const ANIMALS = {
       { id: 'sharktail', impl: 'tailslam', name: '꼬리지느러미 강타', short: '꼬리', icon: '🌊', key: 'L', cd: 8, desc: '거대한 꼬리로 주변을 후려쳐 적을 날려버립니다.' },
     ],
     anim: { gaitAmp: 0.05, bob: 0.03, sway: 0.07, gaitRate: 1.3, tailAmp: 0.45, headBob: 0.02, serpent: true },
-    build: buildShark,
+    build: bShark,
   },
   orca: {
     id: 'orca',
@@ -2580,7 +2581,7 @@ export const ANIMALS = {
       { id: 'sonar', impl: 'roar', name: '초음파 파동', short: '초음파', icon: '🔊', key: 'L', cd: 10, desc: '초음파가 사방으로 퍼져 적을 기절시킵니다.' },
     ],
     anim: { gaitAmp: 0.05, bob: 0.035, sway: 0.05, gaitRate: 1.15, tailAmp: 0.4, headBob: 0.02, serpent: true },
-    build: buildOrca,
+    build: bOrca,
   },
   octopus: {
     id: 'octopus',
@@ -2598,7 +2599,7 @@ export const ANIMALS = {
       { id: 'crush', impl: 'constrict', name: '8다리 휘감기', short: '휘감기', icon: '🌀', key: 'L', cd: 8, desc: '가까운 적을 여덟 팔로 감아 조이며 지속 피해를 줍니다.' },
     ],
     anim: { gaitAmp: 0.05, bob: 0.04, sway: 0.03, gaitRate: 1.2, tailAmp: 0.2, headBob: 0.03, serpent: true },
-    build: buildOctopus,
+    build: bOctopus,
   },
 };
 

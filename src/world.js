@@ -1,8 +1,8 @@
 // 아레나 — 지형별(사바나 · 바다 · 숲 · 설원) 세계 생성
 // 바닥/식생/조명/안개/원경을 지도마다 다시 만들고, 하늘·태양은 재사용한다.
-import THREE from './three.js?v=20261115a';
-import { merge, sweep, unitSphere, unitCone, unitCyl, vertexMaterial } from './sculpt.js?v=20261115a';
-import { clamp, fbm, rand, smoothstep, TAU, makeSoftCircleTexture } from './util.js?v=20261115a';
+import THREE from './three.js?v=20261115b';
+import { merge, sweep, unitSphere, unitCone, unitCyl, vertexMaterial } from './sculpt.js?v=20261115b';
+import { clamp, fbm, rand, smoothstep, TAU, makeSoftCircleTexture } from './util.js?v=20261115b';
 
 export const ARENA_RADIUS = 40;
 
@@ -301,6 +301,17 @@ function ridgeCurtain({ radius, height, color, seed = 3, segments = 140, yBase =
   const mesh = new THREE.Mesh(geo, mat);
   mesh.frustumCulled = false;
   return mesh;
+}
+
+
+// 스폰 지점(0,0,8)과 그 뒤 카메라 자리를 비워 둔다 — 동물 앞을 가리는 바위/수풀 방지
+function clearOfSpawn(x, z, pad = 3.4) {
+  const dx = x - 0;
+  const dz = z - 8;
+  if (dx * dx + dz * dz < pad * pad) return false;
+  // 카메라가 서는 뒤쪽 통로
+  if (Math.abs(x) < 3.0 && z > 8 && z < 20) return false;
+  return true;
 }
 
 // ── 나무 · 바위 · 산호 조각들 ───────────────────────────────
@@ -608,8 +619,10 @@ function buildMap(map, opts) {
 
   // ── 지형별 식생 ────────────────────────────────────────
   const addMerged = (parts) => {
-    if (!parts.length) return;
-    const m = new THREE.Mesh(merge(parts), vegMat);
+    // 스폰 지점과 카메라 통로를 가리는 조형물은 걸러낸다
+    const kept = parts.filter((pp) => !pp.pos || clearOfSpawn(pp.pos[0], pp.pos[2]));
+    if (!kept.length) return;
+    const m = new THREE.Mesh(merge(kept), vegMat);
     m.castShadow = true;
     m.receiveShadow = true;
     m.frustumCulled = false;
@@ -647,12 +660,18 @@ function buildMap(map, opts) {
     for (let i = 0; i < (mobile ? 26 : 48); i++) {
       const a = Math.random() * TAU;
       const r = rand(6, 46);
-      parts.push(...bushParts(Math.cos(a) * r, Math.sin(a) * r, rand(0.5, 1.1), 0x6d7c3a));
+      const px = Math.cos(a) * r;
+      const pz = Math.sin(a) * r;
+      if (!clearOfSpawn(px, pz)) continue;
+      parts.push(...bushParts(px, pz, rand(0.5, 1.1), 0x6d7c3a));
     }
     for (let i = 0; i < (mobile ? 14 : 24); i++) {
       const a = Math.random() * TAU;
       const r = rand(10, 60);
-      parts.push(...rockParts(Math.cos(a) * r, Math.sin(a) * r, rand(0.6, 1.9), 0x8a8274));
+      const px = Math.cos(a) * r;
+      const pz = Math.sin(a) * r;
+      if (!clearOfSpawn(px, pz, 4.2)) continue;
+      parts.push(...rockParts(px, pz, rand(0.6, 1.9), 0x8a8274));
     }
     addMerged(parts);
   }

@@ -1,6 +1,6 @@
 // 시각 효과 — 참격 호, 충격파, 먼지, 피해 숫자, 조이기 코일, 오라
-import THREE from './three.js?v=20261115a';
-import { makeSoftCircleTexture } from './util.js?v=20261115a';
+import THREE from './three.js?v=20261115b';
+import { makeSoftCircleTexture } from './util.js?v=20261115b';
 
 const _v = new THREE.Vector3();
 const _q = new THREE.Quaternion();

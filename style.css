@@ -505,6 +505,13 @@ kbd {
   text-align: left;
 }
 
+/* 동물 그룹을 담는 바깥 상자 — 그리드가 아니라 세로 목록 */
+#cards {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
 .card {
   position: relative;
   display: flex;
