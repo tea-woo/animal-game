@@ -1,14 +1,14 @@
 // 게임 부트스트랩 · 카메라 · 메인 루프
-import THREE from './three.js?v=20261115b';
-import { buildWorld, MAPS, ARENA_RADIUS } from './world.js?v=20261115b';
-import { VFX } from './vfx.js?v=20261115b';
-import { Sfx } from './audio.js?v=20261115b';
-import { Player } from './player.js?v=20261115b';
-import { EnemyManager } from './enemies.js?v=20261115b';
-import { UI } from './ui.js?v=20261115b';
-import { Input } from './input.js?v=20261115b';
-import { ANIMALS } from './animals.js?v=20261115b';
-import { clamp, damp, dampAngle } from './util.js?v=20261115b';
+import THREE from './three.js?v=20261115c';
+import { buildWorld, MAPS, ARENA_RADIUS } from './world.js?v=20261115c';
+import { VFX } from './vfx.js?v=20261115c';
+import { Sfx } from './audio.js?v=20261115c';
+import { Player } from './player.js?v=20261115c';
+import { EnemyManager } from './enemies.js?v=20261115c';
+import { UI } from './ui.js?v=20261115c';
+import { Input } from './input.js?v=20261115c';
+import { ANIMALS } from './animals.js?v=20261115c';
+import { clamp, damp, dampAngle } from './util.js?v=20261115c';
 
 class FakeInput {
   constructor() {
@@ -341,31 +341,32 @@ class Game {
           r.jumpHeight = +(this.player.pos.y - y0).toFixed(2);
           step(45);
 
+          // 피해량은 '맞은 그 적'의 체력 변화로 잰다 (다른 적의 부활로 인한 오차 방지)
           const e1 = placeEnemy(2.0);
           this.player.vel.set(0, 0, 0);
-          const hp0 = totalHp();
+          const hp0 = Math.max(0, e1.hp);
           fake.press('attack');
           step(45);
           waitIdle();
-          r.attackDamage = Math.max(0, +(hp0 - totalHp()).toFixed(0));
+          r.attackDamage = Math.max(0, +(hp0 - Math.max(0, e1.hp)).toFixed(0));
           r.combo = this.player.combo;
 
-          placeEnemy(2.4);
-          const hp1 = totalHp();
+          const e2 = placeEnemy(2.4);
+          const hp1 = Math.max(0, e2.hp);
           fake.press('skill1');
           step(160);
           waitIdle();
           r.skill1 = this.player.cfg.skills[0].name;
-          r.skill1Damage = Math.max(0, +(hp1 - totalHp()).toFixed(0));
+          r.skill1Damage = Math.max(0, +(hp1 - Math.max(0, e2.hp)).toFixed(0));
           r.skill1Cooldown = +(this.player.cd[this.player.cfg.skills[0].id] || 0).toFixed(1);
 
-          placeEnemy(2.4);
-          const hp2 = totalHp();
+          const e3 = placeEnemy(2.4);
+          const hp2 = Math.max(0, e3.hp);
           fake.press('skill2');
           step(170);
           waitIdle();
           r.skill2 = this.player.cfg.skills[1].name;
-          r.skill2Damage = Math.max(0, +(hp2 - totalHp()).toFixed(0));
+          r.skill2Damage = Math.max(0, +(hp2 - Math.max(0, e3.hp)).toFixed(0));
           r.skill2Cooldown = +(this.player.cd[this.player.cfg.skills[1].id] || 0).toFixed(1);
 
           r.ok = r.meshes > 8 && r.walkDist > 1 && r.jumpHeight > 0.3 && r.attackDamage > 0 && r.skill1Cooldown > 0 && r.skill2Cooldown > 0;

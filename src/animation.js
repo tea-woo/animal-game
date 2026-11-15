@@ -1,5 +1,5 @@
 // 절차적 애니메이션 — 대기/걷기/질주(갈롭)/점프/공격/스킬 자세를 블렌딩한다.
-import { clamp, lerp, damp, smoothstep, TAU } from './util.js?v=20261115b';
+import { clamp, lerp, damp, smoothstep, TAU } from './util.js?v=20261115c';
 
 const ZERO = {
   bodyY: 0, pitch: 0, roll: 0, twist: 0, breath: 0, stretch: 0,

@@ -1,9 +1,9 @@
 // 조형 v2 — 해부학적 실루엣으로 다시 만든 12종 동물
 // 몸통·목·머리·다리·꼬리·지느러미를 각각 단면 프로파일로 스윕해 유기적 곡면을 만든다.
-import THREE from './three.js?v=20261115b';
-import { merge, sweep, track, unitSphere, unitCone, vertexMaterial, TAU } from './sculpt.js?v=20261115b';
-import { furMaterial, clumpMaterial, skinMaterial, scaleMaterial } from './textures.js?v=20261115b';
-import { clamp, lerp } from './util.js?v=20261115b';
+import THREE from './three.js?v=20261115c';
+import { merge, sweep, track, unitSphere, unitCone, vertexMaterial, TAU } from './sculpt.js?v=20261115c';
+import { furMaterial, clumpMaterial, skinMaterial, scaleMaterial } from './textures.js?v=20261115c';
+import { clamp, lerp } from './util.js?v=20261115c';
 
 const V = (x = 0, y = 0, z = 0) => new THREE.Vector3(x, y, z);
 const W = (r = 1, g = r, b = r) => new THREE.Color(r, g, b);

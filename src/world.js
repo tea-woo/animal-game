@@ -1,8 +1,8 @@
 // 아레나 — 지형별(사바나 · 바다 · 숲 · 설원) 세계 생성
 // 바닥/식생/조명/안개/원경을 지도마다 다시 만들고, 하늘·태양은 재사용한다.
-import THREE from './three.js?v=20261115b';
-import { merge, sweep, unitSphere, unitCone, unitCyl, vertexMaterial } from './sculpt.js?v=20261115b';
-import { clamp, fbm, rand, smoothstep, TAU, makeSoftCircleTexture } from './util.js?v=20261115b';
+import THREE from './three.js?v=20261115c';
+import { merge, sweep, unitSphere, unitCone, unitCyl, vertexMaterial } from './sculpt.js?v=20261115c';
+import { clamp, fbm, rand, smoothstep, TAU, makeSoftCircleTexture } from './util.js?v=20261115c';
 
 export const ARENA_RADIUS = 40;
 
