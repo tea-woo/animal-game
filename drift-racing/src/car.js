@@ -5,9 +5,9 @@
 //   left(yaw) = (cos yaw, -sin yaw) … 차의 왼쪽 (모델 로컬 +X)
 //   input.steer = +1 → 오른쪽(우회전), -1 → 왼쪽(좌회전)
 //   yaw 를 증가시키면 정면이 left 쪽으로 돌므로, 우회전은 yawRate < 0 이다.
-import THREE from './three.js?v=20261115g';
-import { buildCar, updateCarVisual, applyBodyAttitude } from './carModel.js?v=20261115g';
-import { clamp, damp, TAU } from './util.js?v=20261115g';
+import THREE from './three.js?v=20261115h';
+import { buildCar, updateCarVisual, applyBodyAttitude } from './carModel.js?v=20261115h';
+import { clamp, damp, TAU } from './util.js?v=20261115h';
 
 const WHEELBASE = 2.7;
 const REVERSE_MAX = 12.5;

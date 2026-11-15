@@ -1,6 +1,6 @@
 // 절차적 3D 차량 모델 — 실제 양산 스포츠카 비율의 매끈한 차체(로프트) + 유리 캐빈 +
 // 휀더 플레어·스커트·디퓨저·듀얼 배기·리어 윙, 트레드 타이어와 멀티스포크 알로이 휠.
-import THREE from './three.js?v=20261115g';
+import THREE from './three.js?v=20261115h';
 
 export const CARS = [
   {

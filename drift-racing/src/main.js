@@ -1,15 +1,15 @@
 // DRIFT LEGEND — 부트스트랩·레이스 진행·카메라·메인 루프
-import THREE from './three.js?v=20261115g';
-import { buildTrack, COURSES } from './track.js?v=20261115g';
-import { CARS, buildCar } from './carModel.js?v=20261115g';
-import { Car } from './car.js?v=20261115g';
-import { AICar } from './ai.js?v=20261115g';
-import { Effects, NitroFlame } from './vfx.js?v=20261115g';
-import { Hud } from './hud.js?v=20261115g';
-import { Input } from './input.js?v=20261115g';
-import { Sfx } from './audio.js?v=20261115g';
-import { Net, RemoteCar, makeRoomCode, roomFromUrl, courseFromUrl, inviteLink, BROKERS } from './net.js?v=20261115g';
-import { clamp, lerp, damp, formatTime, rand } from './util.js?v=20261115g';
+import THREE from './three.js?v=20261115h';
+import { buildTrack, COURSES } from './track.js?v=20261115h';
+import { CARS, buildCar } from './carModel.js?v=20261115h';
+import { Car } from './car.js?v=20261115h';
+import { AICar } from './ai.js?v=20261115h';
+import { Effects, NitroFlame } from './vfx.js?v=20261115h';
+import { Hud } from './hud.js?v=20261115h';
+import { Input } from './input.js?v=20261115h';
+import { Sfx } from './audio.js?v=20261115h';
+import { Net, RemoteCar, makeRoomCode, roomFromUrl, courseFromUrl, inviteLink, BROKERS } from './net.js?v=20261115h';
+import { clamp, lerp, damp, formatTime, rand } from './util.js?v=20261115h';
 
 const TOTAL_LAPS = 3;
 const GRID = [
@@ -221,7 +221,7 @@ class Game {
       onLeave: (id) => this.removeRemote(id),
       onStart: (m) => this.onNetStart(m),
       onCourse: (c) => this.onNetCourse(c),
-      onFinish: () => this.renderResultStandings(),
+      onFinish: (from, m) => this.onNetFinish(from, m),
       onHost: () => this.updateLobbyUI(),
     });
 
@@ -623,6 +623,11 @@ class Game {
     const p = this.track.placeAt(this.track.length + slot.s, slot.lane);
     rc.pos.set(p.x, 0, p.z);
     rc.yaw = p.yaw;
+    rc.lapIndex = 0;
+    rc.progressS = this.track.length + slot.s;
+    rc.finishTime = 0;
+    rc.finished = false;
+    rc.snaps.length = 0;
     rc.model.position.set(p.x, this.track.surfaceAt ? this.track.surfaceAt(this.track.length + slot.s, slot.lane) : 0, p.z);
     rc.model.rotation.set(0, p.yaw, 0);
   }
@@ -680,7 +685,8 @@ class Game {
       name: this.playerName,
       lap: this.lapIndex,
       ps: Math.round(p.progressS * 10) / 10,
-      fin: this.state === 'finished' ? 1 : 0,
+      // 완주 기록(초)을 그대로 보낸다 — 0 이면 아직 주행 중
+      fin: this.state === 'finished' ? Math.round((this.finishedTime || 0) * 100) / 100 : 0,
     };
   }
 
@@ -871,6 +877,9 @@ class Game {
       this.ai.forEach((a, k) => {
         const s = GRID[k];
         a.reset(this.track.length + s.s, s.lane, 0);
+        a.finished = false;
+        a.finishTime = 0;
+        a.gridSlot = k;
       });
     }
     this.lapIndex = 0;
@@ -880,6 +889,7 @@ class Game {
     this.finishedTime = 0;
     this.cp = [false, false, false];
     this.prevS = this.player.progressS;
+    this.resultAt = 0;
     this.effects.reset();
   }
 
@@ -923,7 +933,7 @@ class Game {
     this.ai.forEach((a) => { a.model.visible = true; });
     this.hud.show(true);
     this.hud.setLap(1, TOTAL_LAPS);
-    this.hud.setPos(4, 4);
+    this.hud.setPos(this.rankOf(this.player), this.racers().length);
     this.hud.setTime(0);
     this.hud.setBest(this.bestLap);
     this.camPos.set(
@@ -954,7 +964,7 @@ class Game {
     this.el.pause.classList.add('hidden');
     this.hud.show(true);
     this.hud.setLap(1, TOTAL_LAPS);
-    this.hud.setPos(this.net.peerCount, this.net.peerCount);
+    this.hud.setPos(this.rankOf(this.player), this.racers().length);
     this.hud.setTime(0);
     this.hud.setBest(this.bestLap);
     if (this.el.netPill) {
@@ -1001,6 +1011,8 @@ class Game {
     document.getElementById('r-speed').textContent = `${Math.round(this.player.topSpeed)} km/h`;
     this.el.result.classList.remove('hidden');
     this.hud.countdown(null);
+    this.hud.setPos(rank, total);
+    this.resultAt = 0;
     this.sfx.update({ active: false });
     this.sfx.blip(660, 0.2);
     setTimeout(() => this.sfx.blip(880, 0.3), 160);
@@ -1016,6 +1028,13 @@ class Game {
     const box = this.el.resultStandings;
     if (!box) return;
     const rows = this.standings();
+    const total = rows.length;
+    const myIdx = rows.findIndex((r) => r.me);
+    if (this.state === 'finished' && myIdx >= 0) {
+      document.getElementById('r-pos').textContent = `${myIdx + 1}위 / ${total}`;
+      document.getElementById('result-title').textContent = myIdx === 0 ? 'WINNER' : 'FINISH';
+      this.hud.setPos(myIdx + 1, total);
+    }
     box.innerHTML = rows.map((r, i) => {
       const time = r.fin ? formatTime(r.fin) : (r.me && this.state === 'finished' ? '—' : '주행 중…');
       return `<div class="rs-row${r.me ? ' me' : ''}">` +
@@ -1023,6 +1042,17 @@ class Game {
         `<span>${String(r.name || '레이서').replace(/[<>&]/g, '')}</span>` +
         `<em>${time}</em></div>`;
     }).join('');
+  }
+
+  /** 다른 레이서의 완주 통보 — 기록을 반영해 순위를 확정한다 */
+  onNetFinish(from, m) {
+    const rc = this.remotes.get(from);
+    if (rc && m && m.time) {
+      rc.finishTime = Number(m.time) || rc.finishTime;
+      rc.finished = true;
+    }
+    this.renderResultStandings();
+    if (this.el.standings) this.hud.setStandings(this.standings());
   }
 
   /* ── 매 프레임 ──────────────────────────────────────── */
@@ -1046,7 +1076,23 @@ class Game {
     }
 
     if (this.state === 'paused' || this.state === 'finished') {
-      if (this.raceMode === 'multi') this.updateRemotes(dt);
+      if (this.raceMode === 'multi') {
+        this.updateRemotes(dt);
+      } else if (this.state === 'finished') {
+        // 결과 화면에서도 AI 는 계속 달려 자기 완주 기록을 채운다 (순위 확정)
+        this.raceTime += dt;
+        const others = this.ai.map((a) => ({ s: a.s, lane: a.lane }));
+        for (const a of this.ai) a.update(dt, others, true);
+        this.updateAiFinishes();
+      }
+      if (this.state === 'finished') {
+        // 다른 레이서가 뒤늦게 완주하면 결과 순위표·순위를 다시 계산한다
+        this.resultAt = (this.resultAt || 0) + dt;
+        if (this.resultAt > 0.4) {
+          this.resultAt = 0;
+          this.renderResultStandings();
+        }
+      }
       this.effects.update(dt * 0.25);
       this.sfx.update({ active: false });
       return;
@@ -1134,6 +1180,7 @@ class Game {
     const others = this.ai.map((a) => ({ s: a.s, lane: a.lane }));
     others.push({ s: this.player.progressS, lane: this.player.lat });
     for (const a of this.ai) a.update(dt, others, true);
+    this.updateAiFinishes();
 
     // 차량끼리 충돌 (밀어내기·반발·속도 손실·스파크)
     const carsAll = [this.player, ...this.ai, ...this.remoteList];
@@ -1143,8 +1190,10 @@ class Game {
     // 진행도·랩
     const L = this.track.length;
     const s = this.player.progressS;
-    this.cpCheck(s);
-    if (this.prevS > L * 0.72 && s < L * 0.28) {
+    const prevS = this.prevS;
+    this.cpCheck(prevS, s);
+    // 결승선을 '앞으로' 넘었을 때만 랩이 올라간다 (백미러로 되돌아왔다 다시 넘는 경우 방지)
+    if (prevS > L * 0.72 && s < L * 0.28 && prevS - s > L * 0.4) {
       const allCp = this.cp.every(Boolean);
       if (this.lapIndex === 0) {
         this.lapIndex = 1;
@@ -1195,7 +1244,7 @@ class Game {
     this.hud.setLap(Math.max(1, this.lapIndex), TOTAL_LAPS);
     this.hud.setDrift(this.player.driftCharge, this.player.driftLevel, this.player.drifting);
     this.hud.setNitro(this.player.nitro);
-    this.hud.setPos(this.rankOf(this.player), Math.max(2, carsAll.length));
+    this.hud.setPos(this.rankOf(this.player), this.racers().length);
     this.hud.setGear(this.player.reversing, this.player.brake > 0.5);
     this.hud.update(dt, carsAll, 0);
     this.standingsAt += dt;
@@ -1291,34 +1340,52 @@ class Game {
     }
   }
 
-  cpCheck(s) {
+  /** 체크포인트 통과 — 이번 프레임에 지나간 구간을 훑어 큰 dt·랩 경계에서도 놓치지 않는다 */
+  cpCheck(prevS, s) {
     const L = this.track.length;
+    const spans = [];
+    if (s >= prevS) spans.push([prevS, s]);
+    else { spans.push([prevS, L]); spans.push([0, s]); }
     for (let i = 0; i < 3; i++) {
+      if (this.cp[i]) continue;
       const t = L * (0.25 + i * 0.25);
-      if (!this.cp[i] && Math.abs(s - t) < 26) this.cp[i] = true;
+      for (const [a, b] of spans) {
+        if (t >= a - 26 && t <= b + 26) { this.cp[i] = true; break; }
+      }
     }
   }
 
   /* ── 순위 · 스탠딩 ───────────────────────── */
-  rowOf(car, kind, name, lap, s, fin) {
+  //  dist = 지난 랩 수 * 트랙 길이 + 현재 랩 진행 거리.
+  //  같은 dist(스타트 그리드처럼 나란한 경우)는 그리드 슬롯이 앞선 차를 위로 둔다.
+  rowOf(car, kind, name, lap, s, fin, slot = 90) {
     return {
       car, kind, name,
       fin: fin || 0,
       dist: (lap | 0) * this.track.length + (s || 0),
       color: (car.spec && car.spec.ui) || '#ffffff',
       me: kind === 'me',
+      slot,
     };
   }
 
+  playerSlot() {
+    return this.raceMode === 'multi' ? this.raceSlot(this.net.id) : PLAYER_SLOT;
+  }
+
   standings() {
-    const rows = [this.rowOf(this.player, 'me', this.playerName || '나', this.lapIndex, this.player.progressS, this.finishedTime)];
-    for (const a of this.ai) rows.push(this.rowOf(a, 'ai', a.spec.name, a.lapIndex, a.s, 0));
-    for (const rc of this.remoteList) rows.push(this.rowOf(rc, 'net', rc.name, rc.lapIndex, rc.progressS, rc.finishTime || 0));
+    const rows = [this.rowOf(this.player, 'me', this.playerName || '나', this.lapIndex, this.player.progressS, this.finishedTime, this.playerSlot())];
+    this.ai.forEach((a, k) => {
+      rows.push(this.rowOf(a, 'ai', a.spec.name, a.lapIndex, a.s, a.finishTime || 0, a.gridSlot == null ? k : a.gridSlot));
+    });
+    for (const rc of this.remoteList) rows.push(this.rowOf(rc, 'net', rc.name, rc.lapIndex, rc.progressS, rc.finishTime || 0, this.raceSlot(rc.id)));
     rows.sort((a, b) => {
-      if (a.fin && b.fin) return a.fin - b.fin;
+      if (a.fin && b.fin) return a.fin - b.fin || a.slot - b.slot;
       if (a.fin) return -1;
       if (b.fin) return 1;
-      return b.dist - a.dist;
+      const d = b.dist - a.dist;
+      if (Math.abs(d) > 1e-6) return d;
+      return a.slot - b.slot;
     });
     return rows;
   }
@@ -1327,6 +1394,17 @@ class Game {
     const rows = this.standings();
     const i = rows.findIndex((r) => r.car === car);
     return i < 0 ? 1 : i + 1;
+  }
+
+  /** AI 완주 처리 — 결승선(랩 3)을 넘은 AI는 그 순간의 기록을 남겨 순위가 확정되게 한다 */
+  updateAiFinishes() {
+    for (const a of this.ai) {
+      if (a.finished) continue;
+      if (a.lapIndex > TOTAL_LAPS) {
+        a.finished = true;
+        a.finishTime = this.raceTime || 0.001;
+      }
+    }
   }
 
   /* ── 원격 차량 갱신 · 접촉 ─────────────────── */
@@ -1577,7 +1655,8 @@ window.__drift = {
     wallHit: game.player.wallHit,
     contacts: game.contacts,
     impacts: game.impacts,
-    ai: game.ai.map((a) => ({ s: a.s, lane: a.lane, pos: [a.pos.x, a.pos.z], speed: a.speed, off: Math.hypot(a.off.x, a.off.z) })),
+    ai: game.ai.map((a) => ({ s: a.s, lane: a.lane, pos: [a.pos.x, a.pos.z], speed: a.speed, off: Math.hypot(a.off.x, a.off.z), lap: a.lapIndex, fin: +(a.finishTime || 0).toFixed(2) })),
+    finishedTime: +(game.finishedTime || 0).toFixed(2),
     nitro: game.player.nitro,
     boost: game.player.boostTimer,
     skids: game.effects.skids.count,
