@@ -1,6 +1,6 @@
 // 조형 도구 — 키프레임 보간, 스윕(관) 메시, 부위 병합, 털 다발
 // 여러 개의 작은 도형을 하나의 지오메트리로 합쳐 드로우콜과 이음매를 줄인다.
-import THREE from './three.js?v=20261115c';
+import THREE from './three.js?v=20261115d';
 
 export const TAU = Math.PI * 2;
 

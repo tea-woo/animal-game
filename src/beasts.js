@@ -1,9 +1,9 @@
 // 조형 v2 — 해부학적 실루엣으로 다시 만든 12종 동물
 // 몸통·목·머리·다리·꼬리·지느러미를 각각 단면 프로파일로 스윕해 유기적 곡면을 만든다.
-import THREE from './three.js?v=20261115c';
-import { merge, sweep, track, unitSphere, unitCone, vertexMaterial, TAU } from './sculpt.js?v=20261115c';
-import { furMaterial, clumpMaterial, skinMaterial, scaleMaterial } from './textures.js?v=20261115c';
-import { clamp, lerp } from './util.js?v=20261115c';
+import THREE from './three.js?v=20261115d';
+import { merge, sweep, track, unitSphere, unitCone, vertexMaterial, TAU } from './sculpt.js?v=20261115d';
+import { furMaterial, clumpMaterial, skinMaterial, scaleMaterial } from './textures.js?v=20261115d';
+import { clamp, lerp } from './util.js?v=20261115d';
 
 const V = (x = 0, y = 0, z = 0) => new THREE.Vector3(x, y, z);
 const W = (r = 1, g = r, b = r) => new THREE.Color(r, g, b);
@@ -1521,7 +1521,7 @@ function buildElephant() {
           parent.add(bone);
         }
         const local = pts.slice(i, i + 2).map((p2, k) => [p2.x - a.x, p2.y - a.y, p2.z - a.z, radiusAt((i + k) / BONES)]);
-        const seg = splineTube(local.length > 2 ? local : [local[0], local[1], local[1]], { radial: 12, steps: 4, colorFn: () => W(1.0) });
+        const seg = splineTube(local.length > 2 ? local : [local[0], local[1], local[1]], { radial: 12, steps: 4, capStart: i === 0, capEnd: i === BONES - 1, colorFn: () => W(1.0) });
         bone.add(meshWith(seg, fur));
         rig.trunk.push(bone);
         parent = bone;
@@ -2013,47 +2013,44 @@ function buildOctopus() {
   ], { radial: 8, steps: 4, colorFn: () => W(0.9, 0.86, 0.84) });
   head.add(meshWith(siphon, skin));
 
-  // 다리 8개 — 5마디 체인
+  // 다리 8개 — 한 덩어리 곡선 관 (마디 없이 부드럽게)
   rig.tentacles = [];
   const armCount = 8;
   for (let a = 0; a < armCount; a++) {
     const ang = (a / armCount) * TAU + 0.35;
-    const chain = [];
-    let parent = new THREE.Group();
-    parent.position.set(Math.cos(ang) * 0.2, -0.2, Math.sin(ang) * 0.2);
-    parent.rotation.y = -ang + Math.PI / 2;
-    body.add(parent);
-    chain.push(parent);
-    parent.rotation.x = 0.22;
-    let bone = parent;
-    const SEGS = 6;
-    for (let i = 0; i < SEGS; i++) {
-      const seg = new THREE.Group();
-      seg.position.z = i === 0 ? 0 : 0.27;
-      seg.rotation.x = i === 0 ? 0.18 : 0.13;
-      bone.add(seg);
-      const t0 = i / SEGS;
-      const t1 = (i + 1) / SEGS;
-      const r0 = lerp(0.115, 0.018, Math.pow(t0, 0.75));
-      const r1 = lerp(0.115, 0.018, Math.pow(t1, 0.75));
-      const curl = -0.06 - i * 0.05;
-      const geo = splineTube([
-        [0, 0, 0, r0],
-        [0, curl * 0.5, 0.14, (r0 + r1) * 0.55],
-        [0, curl, 0.28, r1],
-      ], { radial: 12, steps: 4, colorFn: () => W(1.0) });
-      seg.add(meshWith(geo, skin));
-      // 빨판
-      const suckers = [];
-      for (let k = 0; k < 4; k++) {
-        const zz = 0.03 + k * 0.07;
-        suckers.push(sphPart(r0 * 0.4, r0 * 0.4, r0 * 0.18, { pos: [0, curl * (zz / 0.28) - r0 * 0.82, zz], color: 0xd89a78, seg: 6 }));
+    const arm = new THREE.Group();
+    arm.position.set(Math.cos(ang) * 0.18, -0.22, Math.sin(ang) * 0.18);
+    arm.rotation.y = -ang + Math.PI / 2;
+    body.add(arm);
+    rig.tentacles.push([arm]);
+
+    const len = 1.55 + (a % 3) * 0.12;
+    const pts = [
+      [0, 0.02, 0, 0.105],
+      [0, -0.06, len * 0.22, 0.088],
+      [0, -0.2, len * 0.46, 0.062],
+      [0, -0.36, len * 0.68, 0.04],
+      [0, -0.44, len * 0.86, 0.022],
+      [0, -0.36, len * 1.0, 0.008],
+    ];
+    const armGeo = splineTube(pts, { radial: 12, steps: 8, colorFn: (p, d) => (d.y < -0.3 ? W(1.1, 1.02, 0.96) : W(1.0)) });
+    arm.add(meshWith(armGeo, skin));
+
+    // 빨판 — 다리 안쪽 두 줄
+    const suckers = [];
+    for (let k = 0; k < 12; k++) {
+      const t = 0.12 + (k / 12) * 0.8;
+      const idx = t * (pts.length - 1);
+      const i0 = Math.min(pts.length - 2, Math.floor(idx));
+      const f = idx - i0;
+      const z = lerp(pts[i0][2], pts[i0 + 1][2], f);
+      const y = lerp(pts[i0][1], pts[i0 + 1][1], f);
+      const r = lerp(pts[i0][3], pts[i0 + 1][3], f);
+      for (const sd of [-1, 1]) {
+        suckers.push(sphPart(r * 0.42, r * 0.3, r * 0.42, { pos: [sd * r * 0.45, y - r * 0.72, z], color: 0xe0a888, seg: 6 }));
       }
-      seg.add(meshWith(merge(suckers), plain));
-      chain.push(seg);
-      bone = seg;
     }
-    rig.tentacles.push(chain);
+    arm.add(meshWith(merge(suckers), plain));
   }
   rig.spine = null;
   rig.legs = null;

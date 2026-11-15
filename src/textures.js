@@ -1,6 +1,6 @@
 // 털 · 비늘 재질 — 캔버스로 만든 방향성 털가닥 텍스처(map/bumpMap/roughnessMap)
 // 동물별로 한 번만 생성해 캐시한다. 256² 이하로 유지해 아이폰에서도 가볍다.
-import THREE from './three.js?v=20261115c';
+import THREE from './three.js?v=20261115d';
 
 const RECIPES = {
   'lion-coat': {

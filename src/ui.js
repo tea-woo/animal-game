@@ -1,7 +1,7 @@
 // UI — 지도 선택, 동물 카드, HUD, 토스트
-import { ANIMALS } from './animals.js?v=20261115c';
-import { MAPS } from './world.js?v=20261115c';
-import { clamp } from './util.js?v=20261115c';
+import { ANIMALS } from './animals.js?v=20261115d';
+import { MAPS } from './world.js?v=20261115d';
+import { clamp } from './util.js?v=20261115d';
 
 const BIOME_ORDER = ['savanna', 'ocean', 'forest', 'snow'];
 
