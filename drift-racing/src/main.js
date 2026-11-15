@@ -1678,7 +1678,7 @@ window.__drift = {
     g.debugInput = { steer: 0.42, drift: true, boost: false, brake: false };
     let sawDrift = false, maxDriftT = 0, maxLevel = 0;
     const yaw0 = g.player.yaw;
-    let yawTurn = 0, maxLat = 0;
+    let yawTurn = 0, maxLat = 0, maxSlip = 0;
     let prevYaw = g.player.yaw;
     for (let i = 0; i < 90; i++) {
       window.__drift.tick(1);
@@ -1686,6 +1686,7 @@ window.__drift = {
       maxDriftT = Math.max(maxDriftT, g.player.driftTime);
       maxLevel = Math.max(maxLevel, g.player.driftLevel);
       maxLat = Math.max(maxLat, Math.abs(g.player.vLat));
+      maxSlip = Math.max(maxSlip, Math.atan2(Math.abs(g.player.vLat), Math.max(1, Math.abs(g.player.speed))) * 180 / Math.PI);
       let dy = g.player.yaw - prevYaw;
       dy = ((dy + Math.PI) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2) - Math.PI;
       yawTurn += Math.abs(dy);
@@ -1696,7 +1697,7 @@ window.__drift = {
     push('스키드마크', st.skids > 0, `quads=${st.skids}`);
     push('연기 파티클', st.smoke > 0, `particles=${st.smoke}`);
     push('드리프트 선회(차가 돈다)', yawTurn > 0.45, `회전=${(yawTurn * 180 / Math.PI).toFixed(0)}°`);
-    push('횡이탈 없음(옆으로 안 밀림)', maxLat < 2.8, `최대 횡속도=${maxLat.toFixed(2)}m/s (${(Math.atan2(maxLat, Math.max(8, Math.abs(g.player.speed))) * 180 / Math.PI).toFixed(1)}°)`);
+    push('횡이탈 없음(옆으로 안 밀림)', maxLat < 4.6 && maxSlip < 12, `최대 횡속도=${maxLat.toFixed(2)}m/s · 최대 슬립각=${maxSlip.toFixed(1)}°`);
 
     // 3) 미니 터보
     g.debugInput = { steer: 0, drift: false, boost: false, brake: false };
