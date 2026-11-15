@@ -1,5 +1,5 @@
 // 절차적 3D 차량 모델 — 로프트 차체, 유리 캐빈, 조향·회전 바퀴, 라이트
-import THREE from './three.js?v=20261115a';
+import THREE from './three.js?v=20261115b';
 
 export const CARS = [
   {
@@ -230,6 +230,18 @@ export function buildCar(spec) {
     body.add(pipe);
   }
 
+  // 후진등 (평소 꺼져 있다가 후진 기어에서 점등)
+  const revMat = new THREE.MeshStandardMaterial({
+    color: 0xf6fbff, emissive: 0xffffff, emissiveIntensity: 0, roughness: 0.3,
+  });
+  const revLights = [];
+  for (const s of [-1, 1]) {
+    const rv = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.07, 0.06), revMat);
+    rv.position.set(s * 0.17, 0.61, L(-2.21));
+    body.add(rv);
+    revLights.push(rv);
+  }
+
   // 바퀴
   const wheels = [];
   const wheelR = 0.37;
@@ -257,7 +269,7 @@ export function buildCar(spec) {
   neon.position.y = 0.02;
   root.add(neon);
 
-  root.userData = { wheels, tails, neon, headMat, tailMat, paint };
+  root.userData = { wheels, tails, neon, headMat, tailMat, paint, revMat, revLights };
   return root;
 }
 
@@ -266,12 +278,13 @@ export function updateCarVisual(car, dt) {
   const spinRate = car.speed / 0.37;
   for (const w of u.wheels) {
     w.spin.rotation.x -= spinRate * dt;
-    if (w.front) w.pivot.rotation.y = car.steerVisual * 0.42;
+    // +steerVisual = 우조향 → 앞바퀴도 차의 오른쪽으로 (로컬 -X)
+    if (w.front) w.pivot.rotation.y = -car.steerVisual * 0.44;
   }
-  // 바퀴 회전 시 스포크가 x축 기준 회전하므로 그대로 둔다
   const braking = car.brake > 0.3;
   for (const t of u.tails) {
-    t.material.emissiveIntensity = braking ? 4.5 : 1.5;
+    t.material.emissiveIntensity = braking ? 5.0 : 1.4;
   }
+  if (u.revMat) u.revMat.emissiveIntensity = car.reversing ? 3.4 : 0;
   u.neon.material.opacity = 0.16 + Math.min(0.3, car.speed / car.maxSpeed * 0.3);
 }

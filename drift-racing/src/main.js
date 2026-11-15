@@ -1,14 +1,14 @@
 // DRIFT LEGEND — 부트스트랩·레이스 진행·카메라·메인 루프
-import THREE from './three.js?v=20261115a';
-import { buildTrack } from './track.js?v=20261115a';
-import { CARS, buildCar } from './carModel.js?v=20261115a';
-import { Car } from './car.js?v=20261115a';
-import { AICar } from './ai.js?v=20261115a';
-import { Effects, NitroFlame } from './vfx.js?v=20261115a';
-import { Hud } from './hud.js?v=20261115a';
-import { Input } from './input.js?v=20261115a';
-import { Sfx } from './audio.js?v=20261115a';
-import { clamp, lerp, damp, formatTime, rand } from './util.js?v=20261115a';
+import THREE from './three.js?v=20261115b';
+import { buildTrack } from './track.js?v=20261115b';
+import { CARS, buildCar } from './carModel.js?v=20261115b';
+import { Car } from './car.js?v=20261115b';
+import { AICar } from './ai.js?v=20261115b';
+import { Effects, NitroFlame } from './vfx.js?v=20261115b';
+import { Hud } from './hud.js?v=20261115b';
+import { Input } from './input.js?v=20261115b';
+import { Sfx } from './audio.js?v=20261115b';
+import { clamp, lerp, damp, formatTime, rand } from './util.js?v=20261115b';
 
 const TOTAL_LAPS = 3;
 const GRID = [
@@ -126,6 +126,9 @@ class Game {
     this.manual = false;
     this.debugInput = null;
     this.errors = [];
+    this.contacts = 0;
+    this.impacts = 0;
+    this.carCrashLock = false;
     this.raf = 0;
     this.last = performance.now();
     this.frameTimes = [];
@@ -410,6 +413,9 @@ class Game {
     while ((ev = this.player.consumeEvent())) {
       if (ev === 'drift-start') {
         this.sfx.blip(300, 0.05, 'sine', 0.05);
+      } else if (ev === 'reverse') {
+        this.sfx.blip(200, 0.14, 'square', 0.06);
+        this.hud.toast('R · 후진', 760, '#ffb46b');
       } else if (ev.type === 'miniturbo') {
         this.effects.burst(
           this.player.pos.x, 0.5, this.player.pos.z, ev.level
@@ -417,6 +423,14 @@ class Game {
         this.sfx.miniTurbo(ev.level);
         this.shake = Math.max(this.shake, 0.35 + ev.level * 0.12);
         if (ev.level >= 3) this.hud.toast('MINI TURBO Lv.3', 900, '#ff8b3d');
+      } else if (ev.type === 'wall') {
+        this.effects.crashSpark(ev.x, 0.6, ev.z, Math.min(3, ev.power * 0.16));
+        this.shake = Math.max(this.shake, Math.min(0.85, 0.2 + ev.power * 0.032));
+        if (!this.wallSoundLock) {
+          this.sfx.crash();
+          this.wallSoundLock = true;
+          setTimeout(() => { this.wallSoundLock = false; }, 240);
+        }
       }
     }
 
@@ -424,30 +438,9 @@ class Game {
     others.push({ s: this.player.progressS, lane: this.player.lat });
     for (const a of this.ai) a.update(dt, others, true);
 
-    // 차량끼리 밀어내기
+    // 차량끼리 충돌 (밀어내기·반발·속도 손실·스파크)
     const carsAll = [this.player, ...this.ai];
-    for (let i = 0; i < carsAll.length; i++) {
-      for (let j = i + 1; j < carsAll.length; j++) {
-        const A = carsAll[i], B = carsAll[j];
-        const dx = B.pos.x - A.pos.x, dz = B.pos.z - A.pos.z;
-        const d2 = dx * dx + dz * dz;
-        const minD = 3.0;
-        if (d2 < minD * minD && d2 > 0.0001) {
-          const d = Math.sqrt(d2);
-          const push = (minD - d) * 0.5;
-          const nx = dx / d, nz = dz / d;
-          A.pos.x -= nx * push; A.pos.z -= nz * push;
-          B.pos.x += nx * push; B.pos.z += nz * push;
-          if (A === this.player) {
-            this.player.vel.x -= nx * 1.2; this.player.vel.z -= nz * 1.2;
-            this.shake = Math.max(this.shake, 0.2);
-          } else if (B === this.player) {
-            this.player.vel.x += nx * 1.2; this.player.vel.z += nz * 1.2;
-            this.shake = Math.max(this.shake, 0.2);
-          }
-        }
-      }
-    }
+    this.resolveCarContacts(carsAll);
 
     // 진행도·랩
     const L = this.track.length;
@@ -496,6 +489,7 @@ class Game {
     this.hud.setDrift(this.player.driftCharge, this.player.driftLevel, this.player.drifting);
     this.hud.setNitro(this.player.nitro);
     this.hud.setPos(this.rankOf(this.player), 4);
+    this.hud.setGear(this.player.reversing, this.player.brake > 0.5);
     this.hud.update(dt, carsAll, 0);
 
     // 사운드
@@ -506,16 +500,75 @@ class Game {
       skid: clamp(this.player.slip * 2.2 + (this.player.drifting ? 0.5 : 0), 0, 1),
       boost: this.player.boostTimer > 0 ? 1 : 0,
     });
-    if (this.player.wallHit > 0.85 && !this.wallSoundLock) {
-      this.sfx.crash();
-      this.shake = 0.55;
-      this.wallSoundLock = true;
-      setTimeout(() => { this.wallSoundLock = false; }, 400);
-    }
 
     this.flame.update(dt, this.player.boostTimer > 0 ? this.player.boostPower : 0);
     this.updateCamera(dt);
     this.updateSun();
+  }
+
+  /* ── 차량 접촉 ─────────────────────────────────────── */
+  // 차체를 앞·뒤 두 개의 원으로 근사해 접촉점을 구한다
+  bodyCircles(car) {
+    const fx = Math.sin(car.yaw), fz = Math.cos(car.yaw);
+    const r = 1.12;
+    return [
+      { x: car.pos.x + fx * 1.05, z: car.pos.z + fz * 1.05, r },
+      { x: car.pos.x - fx * 1.05, z: car.pos.z - fz * 1.05, r },
+    ];
+  }
+
+  resolveCarContacts(cars) {
+    this.contacts = 0;
+    this.impacts = 0;
+    for (let i = 0; i < cars.length; i++) {
+      for (let j = i + 1; j < cars.length; j++) {
+        const A = cars[i], B = cars[j];
+        const ac = this.bodyCircles(A), bc = this.bodyCircles(B);
+        let best = null;
+        for (const ca of ac) {
+          for (const cb of bc) {
+            const dx = cb.x - ca.x, dz = cb.z - ca.z;
+            const d = Math.hypot(dx, dz);
+            const pen = ca.r + cb.r - d;
+            if (d > 1e-4 && pen > 0 && (!best || pen > best.pen)) {
+              best = { pen, nx: dx / d, nz: dz / d, x: (ca.x + cb.x) * 0.5, z: (ca.z + cb.z) * 0.5 };
+            }
+          }
+        }
+        if (!best) continue;
+        this.contacts++;
+
+        // 파고든 만큼 분리
+        const half = best.pen * 0.5 + 0.002;
+        A.pos.x -= best.nx * half; A.pos.z -= best.nz * half;
+        B.pos.x += best.nx * half; B.pos.z += best.nz * half;
+        if (A.shove) A.shove(-best.nx * half, -best.nz * half);
+        if (B.shove) B.shove(best.nx * half, best.nz * half);
+
+        // 접근 속도에 비례한 반발 (충돌음·스파크·흔들림)
+        const rvx = B.vel.x - A.vel.x, rvz = B.vel.z - A.vel.z;
+        const vn = rvx * best.nx + rvz * best.nz;
+        if (vn < 0) {
+          const e = 0.45;
+          const jimp = -(1 + e) * vn * 0.5;
+          if (A.applyImpulse) A.applyImpulse(-best.nx * jimp, -best.nz * jimp);
+          else { A.vel.x -= best.nx * jimp; A.vel.z -= best.nz * jimp; }
+          if (B.applyImpulse) B.applyImpulse(best.nx * jimp, best.nz * jimp);
+          else { B.vel.x += best.nx * jimp; B.vel.z += best.nz * jimp; }
+          const impact = -vn;
+          if (impact > 1.4) {
+            this.impacts++;
+            this.effects.crashSpark(best.x, 0.55, best.z, Math.min(3, impact * 0.16));
+            this.shake = Math.max(this.shake, Math.min(0.9, 0.16 + impact * 0.04));
+            if (impact > 2.8 && !this.carCrashLock) {
+              this.sfx.crash();
+              this.carCrashLock = true;
+              setTimeout(() => { this.carCrashLock = false; }, 200);
+            }
+          }
+        }
+      }
+    }
   }
 
   cpCheck(s) {
@@ -544,15 +597,17 @@ class Game {
     const fwd = { x: Math.sin(car.yaw), z: Math.cos(car.yaw) };
     const speed = Math.hypot(car.vel.x, car.vel.z);
     let dir = { x: fwd.x, z: fwd.z };
+    const portrait = this.camera.aspect < 1;
     if (speed > 4) {
       const vx = car.vel.x / speed, vz = car.vel.z / speed;
-      const blend = car.drifting ? 0.45 : 0.18;
+      const blend = car.drifting ? (portrait ? 0.2 : 0.3) : 0.18;
       dir.x = lerp(fwd.x, vx, blend);
       dir.z = lerp(fwd.z, vz, blend);
       const l = Math.hypot(dir.x, dir.z) || 1;
       dir.x /= l; dir.z /= l;
     }
-    const dist = 8.2 + Math.min(2.2, speed * 0.035);
+    // 세로 화면은 가로 화각이 좁아(약 33°) 드리프트 시 차가 화면 밖으로 밀리지 않게 더 멀리 당긴다
+    const dist = 8.2 + Math.min(2.2, speed * 0.035) + (car.drifting ? (portrait ? 2.6 : 1.0) : 0);
     const height = 3.5 + Math.min(0.7, speed * 0.008);
     const desired = new THREE.Vector3(
       car.pos.x - dir.x * dist,
@@ -562,12 +617,13 @@ class Game {
     const k = 1 - Math.exp(-7.5 * dt);
     this.camPos.lerp(desired, k);
 
+    const aheadLen = car.drifting ? (portrait ? 5.6 + speed * 0.05 : 7 + speed * 0.09) : 7 + speed * 0.09;
     const lookAt = new THREE.Vector3(
-      car.pos.x + fwd.x * (7 + speed * 0.09),
+      car.pos.x + fwd.x * aheadLen,
       1.15,
-      car.pos.z + fwd.z * (7 + speed * 0.09)
+      car.pos.z + fwd.z * aheadLen
     );
-    this.camLook.lerp(lookAt, 1 - Math.exp(-9 * dt));
+    this.camLook.lerp(lookAt, 1 - Math.exp(-(car.drifting ? 13 : 9) * dt));
 
     this.shake = Math.max(0, this.shake - dt * 2.2);
     const sh = this.shake * 0.22 + (car.boostTimer > 0 ? 0.055 : 0) + Math.min(0.05, speed * 0.0009);
@@ -666,6 +722,13 @@ window.__drift = {
     drifting: game.player.drifting,
     driftTime: game.player.driftTime,
     driftLevel: game.player.driftLevel,
+    slipDeg: game.player.slip * 180 / Math.PI,
+    reversing: game.player.reversing,
+    brake: game.player.brake,
+    wallHit: game.player.wallHit,
+    contacts: game.contacts,
+    impacts: game.impacts,
+    ai: game.ai.map((a) => ({ s: a.s, lane: a.lane, pos: [a.pos.x, a.pos.z], speed: a.speed, off: Math.hypot(a.off.x, a.off.z) })),
     nitro: game.player.nitro,
     boost: game.player.boostTimer,
     skids: game.effects.skids.count,
@@ -703,6 +766,18 @@ window.__drift = {
     game.player.progressS = ss;
     game.prevS = ss;
   },
+  aiPlace: (i, s, lane = 0) => {
+    const a = game.ai[i];
+    if (!a) return null;
+    const L = game.track.length;
+    a.s = ((s % L) + L) % L;
+    a.lane = a.baseLane = a.targetLane = lane;
+    a.off.x = a.off.z = 0;
+    a.offVel.x = a.offVel.z = 0;
+    a.bumpT = 0;
+    a.placeOnTrack();
+    return { s: a.s, lane: a.lane };
+  },
   // 자동 주행(검증용) — 트랙을 따라 3랩 완주 가능한지 확인
   autoDrive: (ticks = 60, opts = {}) => {
     const g = game;
@@ -714,7 +789,8 @@ window.__drift = {
       const p = g.track.placeAt((car.progressS + look) % L, (opts.lane || 0));
       const desired = Math.atan2(p.x - car.pos.x, p.z - car.pos.z);
       const err = ((desired - car.yaw + Math.PI * 3) % (Math.PI * 2)) - Math.PI;
-      const steer = Math.max(-1, Math.min(1, err * 2.4));
+      // steer +1 = 우회전이므로, yaw 를 키우려면(좌회전) 음수를 준다
+      const steer = Math.max(-1, Math.min(1, -err * 2.4));
       let vlim = 200 / 3.6;
       for (let k = 0; k < 9; k++) {
         const c = Math.abs(g.track.curvatureAt((car.progressS + 6 + k * 7) % L)) + 1e-4;

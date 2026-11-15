@@ -1,7 +1,7 @@
 // AI 라이벌 — 레이싱 라인 추종, 코너 속도 계산, 차선 회피·추월
-import THREE from './three.js?v=20261115a';
-import { buildCar, updateCarVisual } from './carModel.js?v=20261115a';
-import { clamp, damp, rand } from './util.js?v=20261115a';
+import THREE from './three.js?v=20261115b';
+import { buildCar, updateCarVisual } from './carModel.js?v=20261115b';
+import { clamp, damp, rand } from './util.js?v=20261115b';
 
 export class AICar {
   constructor(spec, track, { skill = 1, startS = 0, lane = 0, lapIndex = 0 } = {}) {
@@ -27,6 +27,10 @@ export class AICar {
     this.laneTimer = rand(1, 4);
     this.finished = false;
     this.jitter = rand(0, 100);
+    // 충돌로 밀려난 위치 오프셋 (트랙 라인 기준, 서서히 복귀)
+    this.off = { x: 0, z: 0 };
+    this.offVel = { x: 0, z: 0 };
+    this.bumpT = 0;
     this.placeOnTrack();
   }
 
@@ -50,7 +54,25 @@ export class AICar {
     this.lapIndex = lapIndex;
     this.speed = 0;
     this.finished = false;
+    this.off.x = this.off.z = 0;
+    this.offVel.x = this.offVel.z = 0;
+    this.bumpT = 0;
     this.placeOnTrack();
+  }
+
+  /** 다른 차량과 접촉 — 밀림 + 속도 손실 */
+  applyImpulse(vx, vz) {
+    this.offVel.x += vx;
+    this.offVel.z += vz;
+    const j = Math.hypot(vx, vz);
+    this.speed = Math.max(0, this.speed - j * 0.6);
+    this.bumpT = Math.max(this.bumpT, 0.5);
+  }
+
+  /** 위치 보정(파고든 만큼 즉시 밀어내기) */
+  shove(dx, dz) {
+    this.off.x += dx;
+    this.off.z += dz;
   }
 
   targetSpeedAt(sAhead) {
@@ -109,8 +131,26 @@ export class AICar {
     }
     if (this.s < 0) this.s += L;
 
+    // 충격 오프셋 감쇠 — 밀려나고 천천히 라인으로 복귀
+    this.bumpT = Math.max(0, this.bumpT - dt);
+    if (this.off.x || this.off.z || this.offVel.x || this.offVel.z) {
+      this.off.x += this.offVel.x * dt;
+      this.off.z += this.offVel.z * dt;
+      const dv = Math.exp(-4.6 * dt);
+      this.offVel.x *= dv;
+      this.offVel.z *= dv;
+      const back = Math.exp(-2.0 * dt);
+      this.off.x *= back;
+      this.off.z *= back;
+      const m = Math.hypot(this.off.x, this.off.z);
+      if (m > 3.4) { this.off.x *= 3.4 / m; this.off.z *= 3.4 / m; }
+      if (m < 0.015 && Math.hypot(this.offVel.x, this.offVel.z) < 0.04) {
+        this.off.x = 0; this.off.z = 0; this.offVel.x = 0; this.offVel.z = 0;
+      }
+    }
+
     const p = this.track.placeAt(this.s, this.lane);
-    this.pos.set(p.x, 0, p.z);
+    this.pos.set(p.x + this.off.x, 0, p.z + this.off.z);
     const ahead = this.track.placeAt((this.s + 6) % L, this.lane + (this.targetLane - this.lane) * 0.3);
     const yawTarget = Math.atan2(ahead.x - p.x, ahead.z - p.z);
     this.yaw = damp(this.yaw, yawTarget, 10, dt);
@@ -125,7 +165,7 @@ export class AICar {
     this.vel.z = fwd.z * this.speed;
     this.speed = Math.hypot(this.vel.x, this.vel.z) || this.speed;
 
-    this.model.position.set(p.x, 0, p.z);
+    this.model.position.set(this.pos.x, 0, this.pos.z);
     this.model.rotation.y = this.yaw;
     this.roll = damp(this.roll, clamp(-this.track.curvatureAt(this.s) * this.speed * 0.03, -0.13, 0.13), 5, dt);
     this.model.rotation.z = this.roll;

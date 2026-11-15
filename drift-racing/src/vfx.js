@@ -1,7 +1,7 @@
 // 이펙트 — 타이어 스키드마크, 드리프트 연기, 니트로 화염·불꽃
-import THREE from './three.js?v=20261115a';
-import { smokeTexture } from './textures.js?v=20261115a';
-import { rand } from './util.js?v=20261115a';
+import THREE from './three.js?v=20261115b';
+import { smokeTexture } from './textures.js?v=20261115b';
+import { rand } from './util.js?v=20261115b';
 
 /* ── 스키드마크 (링 버퍼) ─────────────────────────────── */
 export class SkidMarks {
@@ -205,7 +205,7 @@ export class Effects {
       const w = car.rearWheelWorld(side);
       const prev = trail[s];
       if (sliding && car.drifting) {
-        if (prev.ok) this.skids.add(prev.x, prev.z, w.x, w.z, 0.19 + 0.06 * (level || 1), 0.052);
+        if (prev.ok) this.skids.add(prev.x, prev.z, w.x, w.z, 0.24 + 0.07 * (level || 1), 0.052);
         prev.x = w.x; prev.z = w.z; prev.ok = true;
       } else {
         prev.ok = false;
@@ -221,9 +221,9 @@ export class Effects {
         for (let s = 0; s < 2; s++) {
           const w = car.rearWheelWorld(s === 0 ? -1 : 1);
           this.smoke.spawn(
-            w.x + rand(-0.3, 0.3), rand(0.12, 0.4), w.z + rand(-0.3, 0.3),
-            rand(-1.4, 1.4) - car.vel.x * 0.06, rand(0.3, 1.5), rand(-1.4, 1.4) - car.vel.z * 0.06,
-            col, rand(0.9, 1.7) * (car.drifting ? 1.15 : 0.8), rand(0.45, 1.05), 2.2
+            w.x + rand(-0.35, 0.35), rand(0.12, 0.42), w.z + rand(-0.35, 0.35),
+            rand(-1.6, 1.6) - car.vel.x * 0.07, rand(0.3, 1.6), rand(-1.6, 1.6) - car.vel.z * 0.07,
+            col, rand(0.8, 1.55) * (car.drifting ? 1.15 : 0.8), rand(0.45, 0.95), 2.2
           );
         }
       }
@@ -235,6 +235,26 @@ export class Effects {
   dust(x, z, vx, vz) {
     this.smoke.spawn(x, 0.2, z, vx + rand(-1, 1), rand(0.6, 2), vz + rand(-1, 1),
       new THREE.Color(0xa8946e), rand(0.8, 1.5), rand(0.4, 0.9), 2.4);
+  }
+
+  // 충돌 스파크 — 차량끼리/가드레일 접촉 시
+  crashSpark(x, y, z, power = 1) {
+    const p = Math.max(0.4, Math.min(3, power));
+    const n = Math.round(8 + p * 7);
+    for (let i = 0; i < n; i++) {
+      const a = rand(0, Math.PI * 2);
+      const sp = rand(1.8, 4.6) * (0.7 + p * 0.25);
+      this.spark.spawn(
+        x, y + rand(-0.1, 0.35), z,
+        Math.cos(a) * sp, rand(1.0, 3.8), Math.sin(a) * sp,
+        i % 3 === 0 ? new THREE.Color(0xfff4d2) : new THREE.Color(0xffa23d),
+        rand(0.3, 0.72), rand(0.16, 0.4), 0.35
+      );
+    }
+    for (let i = 0; i < 3 + Math.round(p); i++) {
+      this.smoke.spawn(x, y + 0.2, z, rand(-2.4, 2.4), rand(0.5, 1.6), rand(-2.4, 2.4),
+        new THREE.Color(0xb9c2cf), rand(0.9, 1.7), rand(0.3, 0.7), 2.4);
+    }
   }
 
   burst(x, y, z, level) {

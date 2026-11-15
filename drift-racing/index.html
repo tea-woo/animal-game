@@ -10,7 +10,7 @@
 <meta name="description" content="DRIFT LEGEND — 아이폰에서 터치로 즐기는 3D 드리프트 레이싱" />
 <title>DRIFT LEGEND · 3D 드리프트 레이싱</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏎️</text></svg>" />
-<link rel="stylesheet" href="./style.css?v=20261115a" />
+<link rel="stylesheet" href="./style.css?v=20261115b" />
 <script type="importmap">
 {
   "imports": {
@@ -51,7 +51,7 @@
         </div>
       </div>
 
-      <p class="hint-line">모바일: ◀ ▶ 조향 · DRIFT 길게 · BOOST 가속 &nbsp;|&nbsp; PC: ← → / A D · Space 드리프트 · Shift 부스트</p>
+      <p class="hint-line">모바일: ◀ ▶ 조향 · DRIFT 코너 미끄러짐(정지 후 계속 누르면 후진) · BOOST 가속<br />PC: ← → / A D · Space 드리프트·후진 · Shift 부스트</p>
     </div>
   </div>
 
@@ -64,7 +64,12 @@
         <b id="time-text">0:00.00</b>
         <span id="best-text">BEST --:--.--</span>
       </div>
-      <canvas id="minimap" width="220" height="220" aria-label="미니맵"></canvas>
+    </div>
+
+    <!-- 코스 전체 지도 -->
+    <div id="minimap-wrap">
+      <canvas id="minimap" width="260" height="260" aria-label="코스 지도"></canvas>
+      <span class="mm-tag">COURSE MAP</span>
     </div>
 
     <div class="hud-center">
@@ -91,6 +96,7 @@
           </svg>
           <b id="speed-text">0</b>
           <span>km/h</span>
+          <i class="gear-badge" id="gear-badge">R</i>
         </div>
         <div class="nitro">
           <span>NITRO</span>
@@ -152,7 +158,7 @@
     if (l) l.classList.add('hidden');
   };
   window.addEventListener('error', (e) => { if (!window.__driftReady) fail(e.message || e.error); });
-  import('./src/main.js?v=20261115a').catch((err) => fail(err && (err.stack || err.message) || err));
+  import('./src/main.js?v=20261115b').catch((err) => fail(err && (err.stack || err.message) || err));
 </script>
 </body>
 </html>

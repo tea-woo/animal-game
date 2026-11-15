@@ -1,5 +1,5 @@
 // 입력 — 키보드 + 멀티터치 버튼, iOS 확대·스크롤 차단
-import { clamp } from './util.js?v=20261115a';
+import { clamp } from './util.js?v=20261115b';
 
 export class Input {
   constructor() {
@@ -60,6 +60,8 @@ export class Input {
     el.addEventListener('contextmenu', (e) => e.preventDefault());
   }
 
+  // 조향 입력 규약: +1 = 오른쪽(우회전), -1 = 왼쪽(좌회전)
+  // (물리 계산은 car.js 에서 이 부호를 화면 기준 좌/우와 일치시킨다)
   get steer() {
     let s = 0;
     if (this.btn.left) s -= 1;
