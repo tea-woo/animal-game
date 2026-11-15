@@ -1,5 +1,13 @@
 // HUD — 랩·순위·기록·속도계·드리프트/니트로 게이지·코스 미니맵
-import { clamp, formatTime } from './util.js?v=20261115d';
+import { clamp, formatTime } from './util.js?v=20261115e';
+
+const DEFAULT_PAL = {
+  bg: 'rgba(10, 17, 28, 0.55)',
+  outer: 'rgba(16, 28, 44, 0.95)',
+  road: 'rgba(86, 150, 205, 0.55)',
+  line: '#dcecff',
+  glow: 'rgba(120, 210, 255, 0.85)',
+};
 
 export class Hud {
   constructor(track) {
@@ -20,6 +28,7 @@ export class Hud {
       countdown: document.getElementById('countdown'),
       toast: document.getElementById('toast'),
       minimap: document.getElementById('minimap'),
+      mmTag: document.getElementById('mm-tag'),
       gear: document.getElementById('gear-badge'),
     };
     this.ctx = this.el.minimap.getContext('2d');
@@ -27,6 +36,16 @@ export class Hud {
     this.buildMiniBase();
     this.toastTimer = 0;
     this.lastSpeed = -1;
+  }
+
+  /** 코스 교체 — 미니맵 기준점과 색을 새 코스로 다시 잡는다 */
+  setTrack(track) {
+    this.track = track;
+    this.buildMiniBase();
+    if (this.el.mmTag) {
+      const en = track.spec && track.spec.en;
+      this.el.mmTag.textContent = en ? `COURSE MAP · ${en}` : 'COURSE MAP';
+    }
   }
 
   /* ── 코스 미니맵 ─────────────────────────────────────── */
@@ -66,23 +85,24 @@ export class Hud {
     };
 
     // 바탕 그늘 (트랙 안쪽을 살짝 채워 코스 형태를 또렷하게)
+    const pal = (this.track.spec && this.track.spec.minimap) || DEFAULT_PAL;
     path();
-    g.fillStyle = 'rgba(10, 17, 28, 0.55)';
+    g.fillStyle = pal.bg;
     g.fill();
 
     // 코스 외곽 → 노면
     path();
-    g.strokeStyle = 'rgba(16, 28, 44, 0.95)';
+    g.strokeStyle = pal.outer;
     g.lineWidth = 17;
     g.stroke();
     path();
-    g.strokeStyle = 'rgba(86, 150, 205, 0.55)';
+    g.strokeStyle = pal.road;
     g.lineWidth = 11;
     g.stroke();
     path();
-    g.strokeStyle = '#dcecff';
+    g.strokeStyle = pal.line;
     g.lineWidth = 4.2;
-    g.shadowColor = 'rgba(120, 210, 255, 0.85)';
+    g.shadowColor = pal.glow;
     g.shadowBlur = 7;
     g.stroke();
     g.shadowBlur = 0;

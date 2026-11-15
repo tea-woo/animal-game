@@ -1,7 +1,7 @@
 // AI 라이벌 — 레이싱 라인 추종, 코너 속도 계산, 차선 회피·추월
-import THREE from './three.js?v=20261115d';
-import { buildCar, updateCarVisual, applyBodyAttitude } from './carModel.js?v=20261115d';
-import { clamp, damp, rand } from './util.js?v=20261115d';
+import THREE from './three.js?v=20261115e';
+import { buildCar, updateCarVisual, applyBodyAttitude } from './carModel.js?v=20261115e';
+import { clamp, damp, rand } from './util.js?v=20261115e';
 
 export class AICar {
   constructor(spec, track, { skill = 1, startS = 0, lane = 0, lapIndex = 0 } = {}) {
@@ -43,8 +43,12 @@ export class AICar {
     this.pos.set(p.x, 0, p.z);
     const ahead = this.track.placeAt((this.s + 5) % this.track.length, this.lane);
     this.yaw = Math.atan2(ahead.x - p.x, ahead.z - p.z);
-    this.model.position.copy(this.pos);
+    const h = this.track.heightAt(this.s, this.lane);
+    this.model.position.set(this.pos.x, h, this.pos.z);
     this.model.rotation.set(0, this.yaw, 0);
+    this.model.rotation.x = -Math.atan2(
+      this.track.heightAt(this.s + 1.35, this.lane) - h, 2.8
+    );
     applyBodyAttitude(this.model, 0, 0);
   }
 
@@ -167,8 +171,14 @@ export class AICar {
     this.vel.z = fwd.z * this.speed;
     this.speed = Math.hypot(this.vel.x, this.vel.z) || this.speed;
 
-    this.model.position.set(this.pos.x, 0, this.pos.z);
+    this.model.position.set(this.pos.x, this.track.heightAt(this.s, this.lane), this.pos.z);
     this.model.rotation.y = this.yaw;
+    const gh = this.track.heightAt(this.s, this.lane);
+    this.model.rotation.x = damp(
+      this.model.rotation.x,
+      -Math.atan2(this.track.heightAt(this.s + 1.35, this.lane) - gh, 2.8),
+      7, dt
+    );
     // 차체 롤도 주행 속도에 비례 — 저속 코너에서는 거의 수평, 고속 코너에서만 기운다
     const curvSigned = this.track.curvatureAt(this.s);
     const aiLatAcc = Math.abs(curvSigned) * this.speed * this.speed;

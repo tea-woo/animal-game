@@ -5,9 +5,9 @@
 //   left(yaw) = (cos yaw, -sin yaw) … 차의 왼쪽 (모델 로컬 +X)
 //   input.steer = +1 → 오른쪽(우회전), -1 → 왼쪽(좌회전)
 //   yaw 를 증가시키면 정면이 left 쪽으로 돌므로, 우회전은 yawRate < 0 이다.
-import THREE from './three.js?v=20261115d';
-import { buildCar, updateCarVisual, applyBodyAttitude } from './carModel.js?v=20261115d';
-import { clamp, damp, TAU } from './util.js?v=20261115d';
+import THREE from './three.js?v=20261115e';
+import { buildCar, updateCarVisual, applyBodyAttitude } from './carModel.js?v=20261115e';
+import { clamp, damp, TAU } from './util.js?v=20261115e';
 
 const WHEELBASE = 2.7;
 const REVERSE_MAX = 12.5;
@@ -93,7 +93,7 @@ export class Car {
     this.roll = 0;
     this.pitch = 0;
     this.accelLong = 0;
-    this.model.position.copy(this.pos);
+    this.model.position.set(this.pos.x, this.track.heightAt(s, lateral), this.pos.z);
     this.model.rotation.set(0, this.yaw, 0);
     applyBodyAttitude(this.model, 0, 0);
   }
@@ -337,8 +337,14 @@ export class Car {
     this.slip = Math.abs(Math.atan2(vLat, Math.max(1, Math.abs(vLong))));
 
     /* ── 시각 반영 ────────────────────────────────────── */
-    this.model.position.set(this.pos.x, 0, this.pos.z);
+    // 지면 높이(오프로드 굴곡)와 지형 경사를 차체 전체에 적용 — 바퀴는 노면을 따라간다
+    const gh = t.heightAt(this.progressS, this.lat);
+    const hF = t.heightAt(this.progressS + 1.35, this.lat);
+    const hR = t.heightAt(this.progressS - 1.45, this.lat);
+    const terrPitch = -Math.atan2(hF - hR, 2.8);
+    this.model.position.set(this.pos.x, gh, this.pos.z);
     this.model.rotation.y = this.yaw;
+    this.model.rotation.x = damp(this.model.rotation.x, terrPitch, 9, dt);
 
     // 차체 롤 — 조향 입력이 아니라 실제 횡가속도(원심력) × 주행 속도에 비례.
     //  저속(≈30km/h 이하)에서는 거의 수평, 고속·드리프트·부스트 선회에서만

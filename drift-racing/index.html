@@ -10,7 +10,7 @@
 <meta name="description" content="DRIFT LEGEND — 아이폰에서 터치로 즐기는 3D 드리프트 레이싱" />
 <title>DRIFT LEGEND · 3D 드리프트 레이싱</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏎️</text></svg>" />
-<link rel="stylesheet" href="./style.css?v=20261115d" />
+<link rel="stylesheet" href="./style.css?v=20261115e" />
 <script type="importmap">
 {
   "imports": {
@@ -29,7 +29,7 @@
     <div class="load-box">
       <div class="logo">DRIFT<span>LEGEND</span></div>
       <div class="load-bar"><i id="load-fill"></i></div>
-      <div class="load-text" id="load-text">서킷 준비 중…</div>
+      <div class="load-text" id="load-text">코스 준비 중…</div>
     </div>
   </div>
 
@@ -38,8 +38,10 @@
     <div class="menu-wrap">
       <header class="menu-head">
         <div class="logo">DRIFT<span>LEGEND</span></div>
-        <p class="tagline">3랩 · 4대 경쟁 · 미니터보 드리프트</p>
+        <p class="tagline" id="tagline">아스팔트 서킷 · 3랩 · 4대 경쟁</p>
       </header>
+
+      <div class="courses" id="course-list" role="group" aria-label="코스 선택"><!-- 코스 카드 동적 생성 --></div>
 
       <div class="cars" id="car-list"><!-- 카드 동적 생성 --></div>
 
@@ -69,7 +71,7 @@
     <!-- 코스 전체 지도 -->
     <div id="minimap-wrap">
       <canvas id="minimap" width="260" height="260" aria-label="코스 지도"></canvas>
-      <span class="mm-tag">COURSE MAP</span>
+      <span class="mm-tag" id="mm-tag">COURSE MAP</span>
     </div>
 
     <div class="hud-center">
@@ -158,7 +160,7 @@
     if (l) l.classList.add('hidden');
   };
   window.addEventListener('error', (e) => { if (!window.__driftReady) fail(e.message || e.error); });
-  import('./src/main.js?v=20261115d').catch((err) => fail(err && (err.stack || err.message) || err));
+  import('./src/main.js?v=20261115e').catch((err) => fail(err && (err.stack || err.message) || err));
 </script>
 </body>
 </html>

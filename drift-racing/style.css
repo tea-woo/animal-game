@@ -76,12 +76,13 @@ html, body {
 
 #menu.overlay {
   background:
-    linear-gradient(180deg, rgba(4, 6, 11, 0.94) 0%, rgba(4, 6, 11, 0.88) 38%, rgba(4, 6, 11, 0.35) 62%, rgba(4, 6, 11, 0.72) 100%);
+    linear-gradient(180deg, rgba(5, 10, 17, 0.86) 0%, rgba(5, 10, 17, 0.72) 34%, rgba(5, 10, 17, 0.16) 62%, rgba(5, 10, 17, 0.62) 100%);
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
 }
 
 /* ── 로딩 ─────────────────────────────────────────────── */
+#loading { pointer-events: none; }
 .load-box { width: min(78vw, 340px); text-align: center; }
 .logo {
   font-weight: 900;
@@ -149,6 +150,60 @@ html, body {
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: clamp(6px, 1.6vw, 14px);
 }
+
+/* ── 코스 선택 ─────────────────────────────────────────── */
+.courses {
+  width: 100%;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: clamp(6px, 1.6vw, 14px);
+}
+.course-card {
+  display: flex;
+  align-items: center;
+  gap: clamp(7px, 1.6vw, 12px);
+  padding: clamp(8px, 1.7vw, 13px) clamp(9px, 1.8vw, 15px);
+  border-radius: 14px;
+  border: 1px solid rgba(140, 200, 255, 0.18);
+  background: linear-gradient(160deg, rgba(26, 36, 54, 0.94), rgba(10, 13, 21, 0.96));
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  min-width: 0;
+  cursor: pointer;
+  transition: transform 0.16s ease, border-color 0.16s ease, box-shadow 0.16s ease, background 0.16s ease;
+}
+.course-card:active { transform: scale(0.975); }
+.course-card .cc-emoji {
+  font-size: clamp(17px, 4.4vw, 24px);
+  line-height: 1;
+  flex: none;
+  filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.55));
+}
+.course-card .cc-body { display: flex; flex-direction: column; min-width: 0; gap: 1px; }
+.course-card b {
+  font-size: clamp(12px, 3.1vw, 15px);
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.course-card em {
+  font-style: normal;
+  font-size: clamp(8.5px, 2.2vw, 10.5px);
+  color: var(--dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.course-card.sel {
+  border-color: var(--course-accent, var(--cyan));
+  background: linear-gradient(160deg, rgba(48, 66, 96, 0.95), rgba(12, 16, 26, 0.97));
+  box-shadow: 0 0 0 1px var(--course-accent, var(--cyan)),
+    0 12px 28px rgba(0, 0, 0, 0.5), 0 0 24px -8px var(--course-accent, var(--cyan));
+}
+.course-card.sel b { color: var(--course-accent, var(--cyan)); }
 .car-card {
   position: relative;
   padding: clamp(9px, 1.8vw, 15px) clamp(7px, 1.4vw, 13px);
@@ -239,15 +294,25 @@ html, body {
   align-items: center;
   gap: 10px;
   font-size: 12px;
-  color: var(--dim);
+  color: #c3cee0;
   letter-spacing: 0.04em;
+  padding: 4px 6px 4px 14px;
+  border-radius: 99px;
+  background: rgba(6, 10, 17, 0.62);
+  border: 1px solid rgba(120, 200, 255, 0.14);
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.7);
 }
+.menu-meta #best-lap { white-space: nowrap; }
 .hint-line {
   margin: 0;
   font-size: clamp(9px, 2.3vw, 11px);
   line-height: 1.5;
-  color: rgba(160, 175, 200, 0.7);
+  color: rgba(198, 212, 234, 0.86);
   max-width: 620px;
+  padding: 5px 12px;
+  border-radius: 12px;
+  background: rgba(6, 10, 17, 0.5);
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.85);
 }
 
 /* ── 버튼 ─────────────────────────────────────────────── */
@@ -640,6 +705,9 @@ html, body {
   opacity: 0.7;
 }
 
+/* 가운데 정렬된 일시정지 버튼은 :active 에서도 translateX 를 유지해야 클릭이 유지된다 */
+.pause:active { transform: translateX(-50%) scale(0.94); }
+
 /* 세로 화면: 속도계를 버튼 위로 올려 겹침 방지 */
 @media (orientation: portrait) {
   .cluster { bottom: calc(clamp(62px, 17vw, 86px) + 12px); width: clamp(104px, 28vw, 140px); }
@@ -662,6 +730,10 @@ html, body {
   .menu-wrap { gap: 6px; }
   .logo { font-size: 26px; }
   .menu-head .tagline { font-size: 10px; }
+  .course-card { padding: 6px 10px; border-radius: 12px; }
+  .course-card .cc-emoji { font-size: 15px; }
+  .course-card b { font-size: 12px; }
+  .course-card em { font-size: 9px; }
   .car-card { padding: 6px 8px; border-radius: 12px; }
   .car-card .swatch { height: 20px; margin-bottom: 4px; }
   .car-card h3 { font-size: 12px; }
