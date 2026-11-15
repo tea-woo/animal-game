@@ -1,14 +1,14 @@
 // DRIFT LEGEND — 부트스트랩·레이스 진행·카메라·메인 루프
-import THREE from './three.js?v=20261115b';
-import { buildTrack } from './track.js?v=20261115b';
-import { CARS, buildCar } from './carModel.js?v=20261115b';
-import { Car } from './car.js?v=20261115b';
-import { AICar } from './ai.js?v=20261115b';
-import { Effects, NitroFlame } from './vfx.js?v=20261115b';
-import { Hud } from './hud.js?v=20261115b';
-import { Input } from './input.js?v=20261115b';
-import { Sfx } from './audio.js?v=20261115b';
-import { clamp, lerp, damp, formatTime, rand } from './util.js?v=20261115b';
+import THREE from './three.js?v=20261115c';
+import { buildTrack } from './track.js?v=20261115c';
+import { CARS, buildCar } from './carModel.js?v=20261115c';
+import { Car } from './car.js?v=20261115c';
+import { AICar } from './ai.js?v=20261115c';
+import { Effects, NitroFlame } from './vfx.js?v=20261115c';
+import { Hud } from './hud.js?v=20261115c';
+import { Input } from './input.js?v=20261115c';
+import { Sfx } from './audio.js?v=20261115c';
+import { clamp, lerp, damp, formatTime, rand } from './util.js?v=20261115c';
 
 const TOTAL_LAPS = 3;
 const GRID = [

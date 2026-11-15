@@ -1,5 +1,5 @@
 // 절차적 3D 차량 모델 — 로프트 차체, 유리 캐빈, 조향·회전 바퀴, 라이트
-import THREE from './three.js?v=20261115b';
+import THREE from './three.js?v=20261115c';
 
 export const CARS = [
   {
@@ -269,8 +269,30 @@ export function buildCar(spec) {
   neon.position.y = 0.02;
   root.add(neon);
 
-  root.userData = { wheels, tails, neon, headMat, tailMat, paint, revMat, revLights };
+  root.userData = { wheels, body, tails, neon, headMat, tailMat, paint, revMat, revLights };
   return root;
+}
+
+/* ── 차체 자세(롤·피치) ──────────────────────────────────
+ * 바퀴는 지면에 붙인 채 차체(body 그룹)만 기울인다.
+ * 롤 축을 차축 높이 근처에 두고, 차체 아래 모서리가 지면을 뚫지 않게 살짝 들어올린다.
+ */
+const ROLL_PIVOT_Y = 0.42;
+
+export function applyBodyAttitude(model, roll = 0, pitch = 0) {
+  const body = model.userData && model.userData.body;
+  if (!body) {
+    model.rotation.z = roll;
+    model.rotation.x = pitch;
+    return;
+  }
+  body.rotation.z = roll;
+  body.rotation.x = pitch;
+  body.position.x = ROLL_PIVOT_Y * Math.sin(roll);
+  body.position.y = ROLL_PIVOT_Y * (1 - Math.cos(roll))
+    + 0.30 * Math.abs(Math.sin(roll))
+    + 0.90 * Math.abs(Math.sin(pitch));
+  body.position.z = -0.35 * Math.sin(pitch);
 }
 
 export function updateCarVisual(car, dt) {

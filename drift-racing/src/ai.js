@@ -1,7 +1,7 @@
 // AI 라이벌 — 레이싱 라인 추종, 코너 속도 계산, 차선 회피·추월
-import THREE from './three.js?v=20261115b';
-import { buildCar, updateCarVisual } from './carModel.js?v=20261115b';
-import { clamp, damp, rand } from './util.js?v=20261115b';
+import THREE from './three.js?v=20261115c';
+import { buildCar, updateCarVisual, applyBodyAttitude } from './carModel.js?v=20261115c';
+import { clamp, damp, rand } from './util.js?v=20261115c';
 
 export class AICar {
   constructor(spec, track, { skill = 1, startS = 0, lane = 0, lapIndex = 0 } = {}) {
@@ -45,6 +45,7 @@ export class AICar {
     this.yaw = Math.atan2(ahead.x - p.x, ahead.z - p.z);
     this.model.position.copy(this.pos);
     this.model.rotation.set(0, this.yaw, 0);
+    applyBodyAttitude(this.model, 0, 0);
   }
 
   reset(startS, lane, lapIndex = 0) {
@@ -167,8 +168,14 @@ export class AICar {
 
     this.model.position.set(this.pos.x, 0, this.pos.z);
     this.model.rotation.y = this.yaw;
-    this.roll = damp(this.roll, clamp(-this.track.curvatureAt(this.s) * this.speed * 0.03, -0.13, 0.13), 5, dt);
-    this.model.rotation.z = this.roll;
+    // 차체 롤도 주행 속도에 비례 — 저속 코너에서는 거의 수평, 고속 코너에서만 기운다
+    const curvSigned = this.track.curvatureAt(this.s);
+    const aiLatAcc = Math.abs(curvSigned) * this.speed * this.speed;
+    const aiSpeedGate = clamp((this.speed / this.maxSpeed - 0.10) / 0.75, 0, 1);
+    const aiRollTarget = -Math.sign(curvSigned)
+      * clamp(aiLatAcc / 22, 0, 1) * aiSpeedGate * 0.16;
+    this.roll = damp(this.roll, aiRollTarget, 6, dt);
+    applyBodyAttitude(this.model, this.roll, 0);
 
     updateCarVisual(this, dt);
   }

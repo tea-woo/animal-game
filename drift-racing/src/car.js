@@ -5,13 +5,17 @@
 //   left(yaw) = (cos yaw, -sin yaw) … 차의 왼쪽 (모델 로컬 +X)
 //   input.steer = +1 → 오른쪽(우회전), -1 → 왼쪽(좌회전)
 //   yaw 를 증가시키면 정면이 left 쪽으로 돌므로, 우회전은 yawRate < 0 이다.
-import THREE from './three.js?v=20261115b';
-import { buildCar, updateCarVisual } from './carModel.js?v=20261115b';
-import { clamp, damp, TAU } from './util.js?v=20261115b';
+import THREE from './three.js?v=20261115c';
+import { buildCar, updateCarVisual, applyBodyAttitude } from './carModel.js?v=20261115c';
+import { clamp, damp, TAU } from './util.js?v=20261115c';
 
 const WHEELBASE = 2.7;
 const REVERSE_MAX = 12.5;
 const SLIP_DAMP = 8.5;
+// 차체 롤 한계 — 과하지 않은 서스펜션 롤 수준(약 10°)
+const ROLL_MAX = 0.18;
+// 가감속 피치 한계 (약 1.2°)
+const PITCH_MAX = 0.021;
 
 export class Car {
   constructor(spec, track) {
@@ -41,6 +45,7 @@ export class Car {
     this.events = [];
     this.roll = 0;
     this.pitch = 0;
+    this.accelLong = 0;
     this.wallHit = 0;
     // 기어: DRIFT 홀드로 정지 후 후진
     this.reversing = false;
@@ -77,8 +82,12 @@ export class Car {
     this.impact = 0;
     this.hitFlash = 0;
     this.brake = 0;
+    this.roll = 0;
+    this.pitch = 0;
+    this.accelLong = 0;
     this.model.position.copy(this.pos);
     this.model.rotation.set(0, this.yaw, 0);
+    applyBodyAttitude(this.model, 0, 0);
   }
 
   get kmh() { return Math.hypot(this.vel.x, this.vel.z) * 3.6; }
@@ -120,6 +129,7 @@ export class Car {
     const left = { x: Math.cos(this.yaw), z: -Math.sin(this.yaw) };
     let vLong = this.vel.x * fwd.x + this.vel.z * fwd.z;
     let vLat = this.vel.x * left.x + this.vel.z * left.z;
+    const vLongIn = vLong;
 
     /* ── 기어: DRIFT 홀드 → 브레이크 → 저속 후진 ─────────── */
     const wantsDrift = !!input.drift;
@@ -291,9 +301,28 @@ export class Car {
     /* ── 시각 반영 ────────────────────────────────────── */
     this.model.position.set(this.pos.x, 0, this.pos.z);
     this.model.rotation.y = this.yaw;
-    const rollTarget = clamp(yawRate * Math.abs(vLong) * 0.014, -0.18, 0.18);
-    this.roll = damp(this.roll, rollTarget, 6, dt);
-    this.model.rotation.z = this.roll;
+
+    // 차체 롤 — 조향 입력이 아니라 실제 횡가속도(원심력) × 주행 속도에 비례.
+    //  저속(≈30km/h 이하)에서는 거의 수평, 고속·드리프트·부스트 선회에서만
+    //  서스펜션 롤처럼 은은하게(최대 0.18rad ≈ 10°) 기운다.
+    const vAbs = Math.abs(vLong);
+    const speedRatio = clamp(vAbs / spec.maxSpeed, 0, 1.35);
+    const latAcc = Math.abs(yawRate) * vAbs;                       // m/s² 원심 가속도
+    const latNorm = clamp(Math.pow(latAcc / (24 * spec.grip), 0.75), 0, 1.4);   // 접지 한계 대비
+    const speedGate = clamp((speedRatio - 0.10) / 0.62, 0, 1);     // 속도 게이트(저속 0)
+    const driftGain = this.drifting ? 1.16 : 1;
+    const rollTarget = Math.sign(yawRate)
+      * clamp(latNorm * speedGate * driftGain, 0, 1) * ROLL_MAX;
+    this.roll = damp(this.roll, rollTarget, 7, dt);
+
+    // 가속하면 앞이 들리고, 브레이크를 밟으면 앞이 꺼지는 피치
+    const aLong = (vLong - vLongIn) / Math.max(dt, 1e-4);
+    this.accelLong = damp(this.accelLong, clamp(aLong, -42, 42), 6, dt);
+    const pitchTarget = clamp(-this.accelLong * 0.0028, -PITCH_MAX, PITCH_MAX);
+    this.pitch = damp(this.pitch, pitchTarget, 8, dt);
+
+    // 롤·피치는 차체에만 — 바퀴는 지면에 붙어 있다
+    applyBodyAttitude(this.model, this.roll, this.pitch);
     updateCarVisual(this, dt);
   }
 

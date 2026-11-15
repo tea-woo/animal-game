@@ -1,10 +1,10 @@
 // 서킷 생성 — 트랙 형상, 노면·연석·가드레일·관중석·도시 풍경
-import THREE from './three.js?v=20261115b';
-import { clamp, rand, TAU } from './util.js?v=20261115b';
+import THREE from './three.js?v=20261115c';
+import { clamp, rand, TAU } from './util.js?v=20261115c';
 import {
   asphaltTexture, curbTexture, grassTexture, buildingTexture,
   bannerTexture, crowdTexture, signTexture, numberTexture,
-} from './textures.js?v=20261115b';
+} from './textures.js?v=20261115c';
 
 // 좌표: (x, z) 평면. 시작/결승 직선은 +x 방향(직선 중앙에서 출발).
 const CONTROL = [

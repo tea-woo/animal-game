@@ -1,6 +1,6 @@
 // 절차적 캔버스 텍스처 — 외부 이미지 없이 모든 재질을 만든다.
-import THREE from './three.js?v=20261115b';
-import { rand } from './util.js?v=20261115b';
+import THREE from './three.js?v=20261115c';
+import { rand } from './util.js?v=20261115c';
 
 function makeCanvas(w, h) {
   const c = document.createElement('canvas');
