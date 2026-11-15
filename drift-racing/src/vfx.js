@@ -1,7 +1,7 @@
 // 이펙트 — 타이어 스키드마크, 드리프트 연기, 니트로 화염·불꽃
-import THREE from './three.js?v=20261115e';
-import { smokeTexture } from './textures.js?v=20261115e';
-import { rand } from './util.js?v=20261115e';
+import THREE from './three.js?v=20261115f';
+import { smokeTexture } from './textures.js?v=20261115f';
+import { rand } from './util.js?v=20261115f';
 
 /* ── 스키드마크 (링 버퍼) ─────────────────────────────── */
 export class SkidMarks {

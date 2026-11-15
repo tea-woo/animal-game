@@ -1,14 +1,14 @@
 // DRIFT LEGEND — 부트스트랩·레이스 진행·카메라·메인 루프
-import THREE from './three.js?v=20261115e';
-import { buildTrack, COURSES } from './track.js?v=20261115e';
-import { CARS, buildCar } from './carModel.js?v=20261115e';
-import { Car } from './car.js?v=20261115e';
-import { AICar } from './ai.js?v=20261115e';
-import { Effects, NitroFlame } from './vfx.js?v=20261115e';
-import { Hud } from './hud.js?v=20261115e';
-import { Input } from './input.js?v=20261115e';
-import { Sfx } from './audio.js?v=20261115e';
-import { clamp, lerp, damp, formatTime, rand } from './util.js?v=20261115e';
+import THREE from './three.js?v=20261115f';
+import { buildTrack, COURSES } from './track.js?v=20261115f';
+import { CARS, buildCar } from './carModel.js?v=20261115f';
+import { Car } from './car.js?v=20261115f';
+import { AICar } from './ai.js?v=20261115f';
+import { Effects, NitroFlame } from './vfx.js?v=20261115f';
+import { Hud } from './hud.js?v=20261115f';
+import { Input } from './input.js?v=20261115f';
+import { Sfx } from './audio.js?v=20261115f';
+import { clamp, lerp, damp, formatTime, rand } from './util.js?v=20261115f';
 
 const TOTAL_LAPS = 3;
 const GRID = [
@@ -778,7 +778,9 @@ class Game {
     if (speed > 4 && car.speed > 1) {          // 후진 중에는 차 머리 기준 유지
       const vx = car.vel.x / speed, vz = car.vel.z / speed;
       travel = { x: vx, z: vz };
-      const w = car.drifting ? (portrait ? 0.8 : 0.84) : 0.65;
+      // 드리프트 때 속도 벡터를 84% 따라가면 차체가 화면 옆으로 흘러 '옆으로 가는' 것처럼 보인다.
+      //  40% 선으로 낮춰 카메라가 코너 정면을 안정적으로 잡고 차는 진행 방향을 향해 감아 돈다.
+      const w = car.drifting ? (portrait ? 0.44 : 0.4) : 0.65;
       dir.x = lerp(fwd.x, vx, w);
       dir.z = lerp(fwd.z, vz, w);
       const l = Math.hypot(dir.x, dir.z) || 1;
@@ -797,7 +799,7 @@ class Game {
 
     // 시선도 진행 방향 위주 + 차 머리 일부 — 차체가 화면에서 비스듬히 흐른다
     const aheadLen = car.drifting ? (portrait ? 5.6 + speed * 0.05 : 7 + speed * 0.09) : 7 + speed * 0.09;
-    const lw = travel ? (car.drifting ? 0.7 : 0.5) : 0;
+    const lw = travel ? (car.drifting ? 0.42 : 0.5) : 0;
     const lookDir = travel
       ? { x: lerp(fwd.x, travel.x, lw), z: lerp(fwd.z, travel.z, lw) }
       : fwd;

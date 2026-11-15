@@ -1,7 +1,7 @@
 // AI 라이벌 — 레이싱 라인 추종, 코너 속도 계산, 차선 회피·추월
-import THREE from './three.js?v=20261115e';
-import { buildCar, updateCarVisual, applyBodyAttitude } from './carModel.js?v=20261115e';
-import { clamp, damp, rand } from './util.js?v=20261115e';
+import THREE from './three.js?v=20261115f';
+import { buildCar, updateCarVisual, applyBodyAttitude } from './carModel.js?v=20261115f';
+import { clamp, damp, rand } from './util.js?v=20261115f';
 
 export class AICar {
   constructor(spec, track, { skill = 1, startS = 0, lane = 0, lapIndex = 0 } = {}) {

@@ -5,9 +5,9 @@
 //   left(yaw) = (cos yaw, -sin yaw) … 차의 왼쪽 (모델 로컬 +X)
 //   input.steer = +1 → 오른쪽(우회전), -1 → 왼쪽(좌회전)
 //   yaw 를 증가시키면 정면이 left 쪽으로 돌므로, 우회전은 yawRate < 0 이다.
-import THREE from './three.js?v=20261115e';
-import { buildCar, updateCarVisual, applyBodyAttitude } from './carModel.js?v=20261115e';
-import { clamp, damp, TAU } from './util.js?v=20261115e';
+import THREE from './three.js?v=20261115f';
+import { buildCar, updateCarVisual, applyBodyAttitude } from './carModel.js?v=20261115f';
+import { clamp, damp, TAU } from './util.js?v=20261115f';
 
 const WHEELBASE = 2.7;
 const REVERSE_MAX = 12.5;
@@ -118,12 +118,12 @@ export class Car {
 
   get maxSpeed() { return this.spec.maxSpeed; }
 
-  /** 드리프트 중 목표 슬립(옆으로 흐르는) 속도 — 슬립각 30~40도 */
+  /** 드리프트 중 목표 슬립(옆으로 흐르는) 속도 — 슬립각 12~19도 (옆으로 밀려나지 않는 아케이드 수준) */
   driftSlipTarget(steer, yawRate) {
     const a = Math.abs(this.speed);
     if (a < 4) return 0;
     const dir = Math.sign(steer) || Math.sign(this.vLat) || 1;
-    const ratio = clamp(0.5 + 0.26 * Math.abs(steer), 0.5, 0.84) * (0.9 + 0.1 * this.spec.driftGrip);
+    const ratio = clamp((0.22 + 0.12 * Math.abs(steer)) * (0.9 + 0.1 * this.spec.driftGrip), 0.2, 0.35);
     // 회전(yaw)이 매 프레임 만들어내는 횡속도만큼 목표를 낮춰 실제 슬립각이 ratio 에 수렴하게
     const feed = a * Math.abs(yawRate || 0) / SLIP_DAMP;
     return dir * Math.max(0, Math.min(a * 0.94, a * ratio) - feed);
@@ -245,15 +245,20 @@ export class Car {
     // 횡가속 한계 — 예전 값(24/27 m/s²)은 중속에서도 초당 80~100°씩 머리가 팽이처럼
     //  돌아버려 '제자리 회전'처럼 보였다. 실제 코너 궤적을 따라 옆으로 흐르는 수준으로 낮춘다.
     const gripBase = 19.5 * spec.grip;
-    const latAccelCap = (this.drifting ? 22.5 * spec.driftGrip : gripBase) * (offRoad ? 0.5 : 1);
+    // 드리프트는 접지 선회보다 확실히 더 잘 감아 돌아야 한다 — 예전 22.5 는 타이트한 코너에서
+    // 회전이 모자라 차가 코너 바깥으로 밀려 나가 가드레일로 직행했다.
+    const latAccelCap = (this.drifting ? 28 * spec.driftGrip : gripBase) * (offRoad ? 0.5 : 1);
     const cap = latAccelCap / Math.max(7, Math.abs(vLong));
     yawRate = clamp(yawRate, -cap, cap);
 
     /* ── 접지력 / 드리프트 슬립 ───────────────────────── */
     if (this.drifting) {
-      // 차체는 코너 안쪽을 향하고 진행 방향은 바깥으로 흐른다 (슬립각 30~40도)
+      // 차체는 코너 안쪽을 향하고 진행 방향은 살짝 바깥으로 흐른다 (슬립각 12~19도)
       const target = this.driftSlipTarget(this.steerVisual, yawRate);
       vLat = damp(vLat, target, SLIP_DAMP, dt);
+      // 감속·충돌로 전진 속도가 떨어질 때 슬립이 각도만 커져 옆으로 눕는 것을 막는 상한(≈22°)
+      const latLimit = Math.abs(vLong) * 0.40;
+      vLat = clamp(vLat, -latLimit, latLimit);
       if (Math.abs(vLong) > 5) vLong += 2.2 * dt;
     } else {
       const grip = offRoad ? 4.5 : 11.5;
