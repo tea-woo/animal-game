@@ -1,12 +1,12 @@
 // 코스 생성 — 레이싱 서킷(아스팔트) / 오프로드(흙·자갈) 두 가지 코스를 만든다.
 //  · 코스 선택은 buildTrack(scene, 'circuit' | 'offroad') 로 하고, 바꿀 때는 반환된
 //    track.dispose() 로 이전 코스의 지오메트리·재질·텍스처를 모두 정리한다.
-import THREE from './three.js?v=20261115h';
-import { clamp, rand, TAU } from './util.js?v=20261115h';
+import THREE from './three.js?v=20261117a';
+import { clamp, rand, TAU } from './util.js?v=20261117a';
 import {
   asphaltTexture, dirtRoadTexture, dirtGroundTexture, curbTexture, grassTexture,
   buildingTexture, bannerTexture, crowdTexture, signTexture, numberTexture, woodTexture,
-} from './textures.js?v=20261115h';
+} from './textures.js?v=20261117a';
 
 /* ── 코스 정의 ─────────────────────────────────────────── */
 export const COURSES = {
@@ -283,7 +283,12 @@ export function buildTrack(scene, courseId = 'circuit') {
   } else {
     const asphalt = trackTex(asphaltTexture());
     asphalt.repeat.set(1, 1);
-    const road = ribbon(-hw, hw, 0.02, 1 / 9, asphalt, { receiveShadow: true });
+    // 노면: 색 텍스처 + 같은 텍스처를 범프로 써서 자갈 입자의 미세한 요철을 준다
+    const asphaltMat = new THREE.MeshStandardMaterial({
+      map: asphalt, bumpMap: asphalt, bumpScale: 0.03,
+      roughness: 0.84, metalness: 0.04, side: THREE.DoubleSide,
+    });
+    const road = ribbon(-hw, hw, 0.02, 1 / 9, asphalt, { receiveShadow: true, material: asphaltMat });
     road.name = 'road';
 
     // 어깨(콘크리트)
@@ -291,11 +296,14 @@ export function buildTrack(scene, courseId = 'circuit') {
     ribbon(hw, hw + SHOULDER, 0.015, 0.2, null, { material: shoulderMat });
     ribbon(-hw - SHOULDER, -hw, 0.015, 0.2, null, { material: shoulderMat });
 
-    // 연석
+    // 연석 — 붉은/흰 블록에 범프를 줘서 단차가 보이게
     const curb = trackTex(curbTexture());
     curb.repeat.set(1, 1);
-    ribbon(hw - 0.1, hw + 1.25, 0.045, 1 / 4.4, curb);
-    ribbon(-hw - 1.25, -hw + 0.1, 0.045, 1 / 4.4, curb);
+    const curbMat = new THREE.MeshStandardMaterial({
+      map: curb, bumpMap: curb, bumpScale: 0.04, roughness: 0.72, metalness: 0.05, side: THREE.DoubleSide,
+    });
+    ribbon(hw - 0.1, hw + 1.25, 0.045, 1 / 4.4, curb, { material: curbMat });
+    ribbon(-hw - 1.25, -hw + 0.1, 0.045, 1 / 4.4, curb, { material: curbMat });
 
     // 흰색 경계선
     const lineMat = new THREE.MeshStandardMaterial({ color: 0xeef3fb, roughness: 0.6 });

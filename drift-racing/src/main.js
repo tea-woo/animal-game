@@ -1,15 +1,15 @@
 // DRIFT LEGEND — 부트스트랩·레이스 진행·카메라·메인 루프
-import THREE from './three.js?v=20261115h';
-import { buildTrack, COURSES } from './track.js?v=20261115h';
-import { CARS, buildCar } from './carModel.js?v=20261115h';
-import { Car } from './car.js?v=20261115h';
-import { AICar } from './ai.js?v=20261115h';
-import { Effects, NitroFlame } from './vfx.js?v=20261115h';
-import { Hud } from './hud.js?v=20261115h';
-import { Input } from './input.js?v=20261115h';
-import { Sfx } from './audio.js?v=20261115h';
-import { Net, RemoteCar, makeRoomCode, roomFromUrl, courseFromUrl, inviteLink, BROKERS } from './net.js?v=20261115h';
-import { clamp, lerp, damp, formatTime, rand } from './util.js?v=20261115h';
+import THREE from './three.js?v=20261117a';
+import { buildTrack, COURSES } from './track.js?v=20261117a';
+import { CARS, buildCar } from './carModel.js?v=20261117a';
+import { Car } from './car.js?v=20261117a';
+import { AICar } from './ai.js?v=20261117a';
+import { Effects, NitroFlame } from './vfx.js?v=20261117a';
+import { Hud } from './hud.js?v=20261117a';
+import { Input } from './input.js?v=20261117a';
+import { Sfx } from './audio.js?v=20261117a';
+import { Net, RemoteCar, makeRoomCode, roomFromUrl, courseFromUrl, inviteLink, BROKERS } from './net.js?v=20261117a';
+import { clamp, lerp, damp, formatTime, rand } from './util.js?v=20261117a';
 
 const TOTAL_LAPS = 3;
 const GRID = [
@@ -166,6 +166,15 @@ class Game {
     this.sunTarget = new THREE.Object3D();
     this.scene.add(this.sunTarget);
     this.sun.target = this.sunTarget;
+
+    // 반대편에서 비추는 부드러운 채움광 — 금속 도장의 어두운 면이 새까맣게 죽지 않게
+    this.fill = new THREE.DirectionalLight(0x9dc4ff, 0.42);
+    this.fill.position.set(-this.sunDir.x * 90, 55, -this.sunDir.z * 90);
+    this.scene.add(this.fill);
+    // 지면 반사(따뜻한 아스팔트 빛)를 아래에서 살짝
+    this.bounce = new THREE.DirectionalLight(0xffd9b0, 0.18);
+    this.bounce.position.set(0, -60, 0);
+    this.scene.add(this.bounce);
 
     this.course = localStorage.getItem('drift.course') === 'offroad' ? 'offroad' : 'circuit';
     this.track = buildTrack(this.scene, this.course);
@@ -1246,6 +1255,7 @@ class Game {
     this.hud.setNitro(this.player.nitro);
     this.hud.setPos(this.rankOf(this.player), this.racers().length);
     this.hud.setGear(this.player.reversing, this.player.brake > 0.5);
+    this.hud.setDriftButton(this.player.atRest);
     this.hud.update(dt, carsAll, 0);
     this.standingsAt += dt;
     if (this.standingsAt > 0.26) {
@@ -1594,6 +1604,10 @@ try {
 /* ── 자동 검증 훅 ───────────────────────────────────────── */
 window.__drift = {
   game,
+  THREE,
+  // 검증용 — 카탈로그 순서대로 차량 모델을 새로 만들어 준다(쇼룸 촬영 등)
+  build: (i) => buildCar(CARS[i] || CARS[0]),
+  carName: (i) => (CARS[i] || CARS[0]).name,
   standings: () => game.standings().map((r) => ({ name: r.name, me: r.me, dist: Math.round(r.dist), fin: r.fin })),
   multi: {
     create: (name) => {
@@ -1651,6 +1665,8 @@ window.__drift = {
     driftLevel: game.player.driftLevel,
     slipDeg: game.player.slip * 180 / Math.PI,
     reversing: game.player.reversing,
+    atRest: game.player.atRest,
+    driftBtn: (document.getElementById('btn-drift') || {}).textContent,
     brake: game.player.brake,
     wallHit: game.player.wallHit,
     contacts: game.contacts,

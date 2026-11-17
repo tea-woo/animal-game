@@ -1,5 +1,5 @@
 // HUD — 랩·순위·기록·속도계·드리프트/니트로 게이지·코스 미니맵
-import { clamp, formatTime } from './util.js?v=20261115h';
+import { clamp, formatTime } from './util.js?v=20261117a';
 
 const DEFAULT_PAL = {
   bg: 'rgba(10, 17, 28, 0.55)',
@@ -36,6 +36,7 @@ export class Hud {
     };
     this.ctx = this.el.minimap.getContext('2d');
     this.gearOn = null;
+    this.restOn = null;
     this.buildMiniBase();
     this.toastTimer = 0;
     this.lastSpeed = -1;
@@ -143,6 +144,7 @@ export class Hud {
     if (v) {
       this.buildMiniBase();
       this.el.minimap.getContext('2d').drawImage(this.miniBase, 0, 0);
+      this.setDriftButton(true);
     }
   }
 
@@ -195,6 +197,19 @@ export class Hud {
     if (this.gearOn === !!reversing) return;
     this.gearOn = !!reversing;
     el.classList.toggle('on', !!reversing);
+  }
+
+  /* 드리프트 버튼 라벨 — 정지 상태(후진이 걸리는 속도 이하)에서는 후진을 겸하므로 R,
+   * 주행 속도가 올라가면 다시 DRIFT 로 돌아간다. */
+  setDriftButton(atRest) {
+    const el = this.el.driftBtn;
+    if (!el) return;
+    const v = !!atRest;
+    if (this.restOn === v) return;
+    this.restOn = v;
+    el.textContent = v ? 'R' : 'DRIFT';
+    el.classList.toggle('reverse', v);
+    el.setAttribute('aria-label', v ? '정지 · 후진' : '드리프트');
   }
 
   /* ── 순위표 (접속한 플레이어 · AI) ───────────────── */

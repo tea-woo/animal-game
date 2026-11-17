@@ -5,13 +5,17 @@
 //   left(yaw) = (cos yaw, -sin yaw) … 차의 왼쪽 (모델 로컬 +X)
 //   input.steer = +1 → 오른쪽(우회전), -1 → 왼쪽(좌회전)
 //   yaw 를 증가시키면 정면이 left 쪽으로 돌므로, 우회전은 yawRate < 0 이다.
-import THREE from './three.js?v=20261115h';
-import { buildCar, updateCarVisual, applyBodyAttitude } from './carModel.js?v=20261115h';
-import { clamp, damp, TAU } from './util.js?v=20261115h';
+import THREE from './three.js?v=20261117a';
+import { buildCar, updateCarVisual, applyBodyAttitude } from './carModel.js?v=20261117a';
+import { clamp, damp, TAU } from './util.js?v=20261117a';
 
 const WHEELBASE = 2.7;
 const REVERSE_MAX = 12.5;
 const SLIP_DAMP = 8.5;
+// 드리프트 중 니트로 충전 배율 (아빠 피드백: 기존보다 3배 빠르게)
+const NITRO_DRIFT_GAIN = 3;
+// 후진이 발동되는 속도 임계값 — HUD 의 드리프트 버튼이 R 로 바뀌는 기준과 같다
+const REVERSE_TRIGGER = 3.0;
 // 차체 롤 한계 — 과하지 않은 서스펜션 롤 수준(약 10°)
 const ROLL_MAX = 0.18;
 // 가감속 피치 한계 (약 1.2°)
@@ -117,6 +121,11 @@ export class Car {
 
   get kmh() { return Math.hypot(this.vel.x, this.vel.z) * 3.6; }
 
+  /** 정지(후진 발동 속도 이하) 상태 — HUD 의 드리프트 버튼을 R 로 표시할 기준 */
+  get atRest() {
+    return Math.abs(this.speed) < REVERSE_TRIGGER || this.reversing;
+  }
+
   /** 현재 위치의 노면 높이(램프 포함) */
   surfaceNow() {
     const t = this.track;
@@ -195,7 +204,7 @@ export class Car {
     const driftBrake = wantsDrift && !this.drifting && !this.reversing;
 
     // 정지 상태에서 DRIFT를 계속 누르면 후진 기어
-    if (driftBrake && !input.brake && Math.abs(vLong) < 3.0 && this.driftHold > 0.3) {
+    if (driftBrake && !input.brake && Math.abs(vLong) < REVERSE_TRIGGER && this.driftHold > 0.3) {
       this.reversing = true;
       this.events.push('reverse');
     }
@@ -247,7 +256,7 @@ export class Car {
       this.driftTime += dt;
       this.driftLevel = this.driftTime > 2.1 ? 3 : this.driftTime > 0.95 ? 2 : 1;
       this.driftCharge = clamp(this.driftTime / 2.6, 0, 1);
-      this.nitro = clamp(this.nitro + dt * (0.055 + 0.03 * this.driftLevel), 0, 1);
+      this.nitro = clamp(this.nitro + dt * (0.055 + 0.03 * this.driftLevel) * NITRO_DRIFT_GAIN, 0, 1);
     } else if (this.drifting) {
       // 드리프트 종료 → 미니 터보
       this.drifting = false;
@@ -269,8 +278,9 @@ export class Car {
     // 우조향(+1)이면 우회전 → yawRate < 0 (후진 중에는 yaw 부호가 뒤집혀
     //  뒷바퀴가 조향 쪽으로 흐른다 = 차체 뒷부분이 화면에서 누른 쪽으로 간다)
     let yawRate = -(vLong / WHEELBASE) * Math.tan(maxSteer * this.steerVisual);
-    // DRIFT 홀드 중에는 일반 조향보다 더 날카롭게 코너 안쪽으로 감아 돈다
-    if (this.drifting) yawRate *= 1.28;
+    // DRIFT 홀드 중에는 일반 조향보다 확실히 더 날카롭게 코너 안쪽으로 감아 돈다
+    //  (아빠 피드백: 드리프트 후 부스터로 커브를 꺾어 나갈 수 있게 선회력을 강화)
+    if (this.drifting) yawRate *= 1.95;
     if (this.reversing) yawRate *= 0.8;
 
     // 횡가속 한계 — 예전 값(24/27 m/s²)은 중속에서도 초당 80~100°씩 머리가 팽이처럼
@@ -278,7 +288,7 @@ export class Car {
     const gripBase = 19.5 * spec.grip;
     // 드리프트는 접지 선회보다 확실히 더 잘 감아 돌아야 한다 — 예전 22.5 는 타이트한 코너에서
     // 회전이 모자라 차가 코너 바깥으로 밀려 나가 가드레일로 직행했다.
-    const latAccelCap = (this.drifting ? 34 * spec.driftGrip : gripBase) * (offRoad ? 0.5 : 1);
+    const latAccelCap = (this.drifting ? 57 * spec.driftGrip : gripBase) * (offRoad ? 0.5 : 1);
     const cap = latAccelCap / Math.max(7, Math.abs(vLong));
     yawRate = clamp(yawRate, -cap, cap);
     // 공중에서는 조종이 거의 들지 않는다
@@ -482,8 +492,8 @@ export class Car {
 
     // 롤·피치·드리프트 연출은 차체에만 — 바퀴는 지면에 붙어 있다
     applyBodyAttitude(this.model, this.roll, this.pitch);
-    // 아케이드 드리프트 연출 — 차체만 코너 안쪽으로 살짝(최대 11°) 더 틀어 보인다
-    const driftVisTarget = this.drifting ? clamp(yawRate * 0.15, -0.20, 0.20) : 0;
+    // 아케이드 드리프트 연출 — 차체만 코너 안쪽으로 살짝(최대 14°) 더 틀어 보인다
+    const driftVisTarget = this.drifting ? clamp(yawRate * 0.17, -0.24, 0.24) : 0;
     this.driftVis = damp(this.driftVis, driftVisTarget, this.drifting ? 10 : 7, dt);
     const bodyGroup = this.model.userData && this.model.userData.body;
     if (bodyGroup) bodyGroup.rotation.y = this.driftVis;

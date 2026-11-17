@@ -1,6 +1,6 @@
 // 절차적 캔버스 텍스처 — 외부 이미지 없이 모든 재질을 만든다.
-import THREE from './three.js?v=20261115h';
-import { rand } from './util.js?v=20261115h';
+import THREE from './three.js?v=20261117a';
+import { rand } from './util.js?v=20261117a';
 
 function makeCanvas(w, h) {
   const c = document.createElement('canvas');
@@ -18,50 +18,87 @@ function toTexture(canvas, { repeat = [1, 1], srgb = true, aniso = 4 } = {}) {
   return t;
 }
 
-/* ── 아스팔트 (아침 햇살 아래의 밝은 회색) ─────────────── */
+/* ── 아스팔트 (아침 햇살 아래의 밝은 회색) ───────────────
+ * u = 코스 폭 방향, v = 진행 방향. 레이싱 라인·타이어 골·타르 이음매를
+ * 폭 방향 위치에 맞춰 그려서 노면이 '실제 서킷'처럼 읽히게 한다.
+ */
 export function asphaltTexture() {
   const { c, g } = makeCanvas(512, 512);
-  g.fillStyle = '#4c5158';
+  g.fillStyle = '#4a4f56';
   g.fillRect(0, 0, 512, 512);
 
-  // 큰 얼룩(패치·기름 자국)
-  for (let i = 0; i < 70; i++) {
-    const x = rand(0, 512), y = rand(0, 512), r = rand(18, 90);
+  // 큰 얼룩(수리 패치·기름 자국)
+  for (let i = 0; i < 90; i++) {
+    const x = rand(0, 512), y = rand(0, 512), r = rand(16, 96);
     const grd = g.createRadialGradient(x, y, 0, x, y, r);
     const v = Math.random() < 0.5 ? 0 : 255;
-    grd.addColorStop(0, `rgba(${v},${v},${v},${rand(0.015, 0.06)})`);
+    grd.addColorStop(0, `rgba(${v},${v},${v},${rand(0.015, 0.055)})`);
     grd.addColorStop(1, 'rgba(0,0,0,0)');
     g.fillStyle = grd;
     g.beginPath();
     g.arc(x, y, r, 0, Math.PI * 2);
     g.fill();
   }
+
+  // 레이싱 라인 — 두 바퀴가 지나가는 폭 방향 위치(u≈0.27 / 0.73)를 고무로 검게
+  for (const cu of [0.27, 0.73]) {
+    for (const [dw, a] of [[0.10, 0.16], [0.045, 0.13]]) {
+      const grd = g.createLinearGradient((cu - dw) * 512, 0, (cu + dw) * 512, 0);
+      grd.addColorStop(0, 'rgba(18,19,22,0)');
+      grd.addColorStop(0.5, `rgba(18,19,22,${a})`);
+      grd.addColorStop(1, 'rgba(18,19,22,0)');
+      g.fillStyle = grd;
+      g.fillRect((cu - dw) * 512, 0, dw * 2 * 512, 512);
+    }
+  }
+
+  // 진행 방향으로 길게 남은 타이어 골
+  g.globalAlpha = 0.10;
+  for (let i = 0; i < 90; i++) {
+    const x = rand(0, 512);
+    g.strokeStyle = Math.random() < 0.6 ? '#101216' : '#8b9099';
+    g.lineWidth = rand(0.8, 2.6);
+    g.beginPath();
+    g.moveTo(x, 0);
+    let y = 0;
+    while (y < 512) {
+      y += rand(40, 150);
+      g.lineTo(x + rand(-2.2, 2.2), y);
+    }
+    g.stroke();
+  }
+  g.globalAlpha = 1;
+
+  // 아스팔트 이음매(가로 타르 줄) — 시공 경계
+  for (let i = 0; i < 3; i++) {
+    const y = rand(0, 512);
+    g.strokeStyle = `rgba(24,25,28,${rand(0.25, 0.45)})`;
+    g.lineWidth = rand(1.2, 2.6);
+    g.beginPath();
+    g.moveTo(0, y);
+    for (let x = 0; x <= 512; x += 32) g.lineTo(x, y + rand(-1.5, 1.5));
+    g.stroke();
+  }
+
   // 자갈 입자
   const img = g.getImageData(0, 0, 512, 512);
   const d = img.data;
   for (let i = 0; i < d.length; i += 4) {
-    const n = (Math.random() - 0.5) * 32;
+    const n = (Math.random() - 0.5) * 34;
     d[i] += n;
     d[i + 1] += n;
     d[i + 2] += n * 1.05;
   }
   g.putImageData(img, 0, 0);
-  // 타이어 고무 흔적
-  g.globalAlpha = 0.085;
-  for (let i = 0; i < 26; i++) {
-    g.strokeStyle = Math.random() < 0.7 ? '#0e1014' : '#6d727a';
-    g.lineWidth = rand(2, 8);
-    g.beginPath();
-    let x = rand(0, 512), y = rand(0, 512);
-    g.moveTo(x, y);
-    for (let k = 0; k < 4; k++) {
-      x += rand(-60, 60);
-      y += rand(-60, 60);
-      g.lineTo(x, y);
-    }
-    g.stroke();
+
+  // 밝은 석영 알갱이 — 햇빛에 반짝이는 돌
+  for (let i = 0; i < 2600; i++) {
+    const v = Math.round(rand(150, 230));
+    g.fillStyle = `rgba(${v},${v},${v + 6},${rand(0.08, 0.4)})`;
+    const x = rand(0, 512), y = rand(0, 512);
+    g.fillRect(x, y, rand(0.8, 1.8), rand(0.8, 1.8));
   }
-  g.globalAlpha = 1;
+
   return toTexture(c, { repeat: [1, 1] });
 }
 
@@ -188,17 +225,25 @@ export function dirtGroundTexture() {
 
 /* ── 연석(빨강·흰색) ──────────────────────────────────── */
 export function curbTexture() {
-  const { c, g } = makeCanvas(64, 256);
+  const { c, g } = makeCanvas(96, 256);
   const bands = 4;
   for (let i = 0; i < bands; i++) {
-    g.fillStyle = i % 2 === 0 ? '#e63c3c' : '#f4f4f4';
-    g.fillRect(0, (256 / bands) * i, 64, 256 / bands);
+    g.fillStyle = i % 2 === 0 ? '#d5322f' : '#e9e6df';
+    g.fillRect(0, (256 / bands) * i, 96, 256 / bands);
   }
-  // 마모
-  g.globalAlpha = 0.16;
-  for (let i = 0; i < 240; i++) {
-    g.fillStyle = '#2a2a2a';
-    g.fillRect(rand(0, 64), rand(0, 256), rand(1, 5), rand(1, 4));
+  // 안쪽·바깥쪽 어두운 경계(연석의 단면)
+  const edge = g.createLinearGradient(0, 0, 96, 0);
+  edge.addColorStop(0, 'rgba(0,0,0,0.35)');
+  edge.addColorStop(0.12, 'rgba(0,0,0,0.05)');
+  edge.addColorStop(0.86, 'rgba(0,0,0,0.02)');
+  edge.addColorStop(1, 'rgba(0,0,0,0.45)');
+  g.fillStyle = edge;
+  g.fillRect(0, 0, 96, 256);
+  // 마모 — 바퀴에 긁힌 흰 자국과 때
+  g.globalAlpha = 0.2;
+  for (let i = 0; i < 320; i++) {
+    g.fillStyle = Math.random() < 0.6 ? '#2a2a2a' : '#ffffff';
+    g.fillRect(rand(0, 96), rand(0, 256), rand(1, 6), rand(1, 5));
   }
   g.globalAlpha = 1;
   return toTexture(c, { repeat: [1, 1] });
@@ -207,18 +252,36 @@ export function curbTexture() {
 /* ── 잔디 (아침 햇살) ──────────────────────────────────── */
 export function grassTexture() {
   const { c, g } = makeCanvas(512, 512);
-  g.fillStyle = '#3c6329';
+  g.fillStyle = '#3f6a2c';
   g.fillRect(0, 0, 512, 512);
-  for (let i = 0; i < 9000; i++) {
+  // 잔디 깎은 자국 — 넓은 띠가 번갈아 밝고 어둡다
+  for (let i = 0; i < 8; i++) {
+    g.fillStyle = i % 2 ? 'rgba(120,170,80,0.10)' : 'rgba(20,50,16,0.10)';
+    g.fillRect(0, i * 64, 512, 64);
+  }
+  // 잔디 알갱이
+  for (let i = 0; i < 14000; i++) {
     const x = rand(0, 512), y = rand(0, 512);
-    const hue = rand(78, 118);
-    g.fillStyle = `hsla(${hue}, ${rand(28, 52)}%, ${rand(18, 40)}%, ${rand(0.3, 0.85)})`;
+    const hue = rand(76, 118);
+    g.fillStyle = `hsla(${hue}, ${rand(26, 54)}%, ${rand(16, 42)}%, ${rand(0.3, 0.9)})`;
     g.fillRect(x, y, rand(1, 3), rand(2, 6));
   }
+  // 마른 풀 · 흙이 드러난 패치
+  for (let i = 0; i < 28; i++) {
+    const x = rand(0, 512), y = rand(0, 512), r = rand(16, 64);
+    const grd = g.createRadialGradient(x, y, 0, x, y, r);
+    grd.addColorStop(0, Math.random() < 0.5 ? 'rgba(150,150,74,0.22)' : 'rgba(86,66,40,0.20)');
+    grd.addColorStop(1, 'rgba(0,0,0,0)');
+    g.fillStyle = grd;
+    g.beginPath();
+    g.arc(x, y, r, 0, Math.PI * 2);
+    g.fill();
+  }
+  // 햇빛이 닿은 밝은 얼룩
   for (let i = 0; i < 40; i++) {
     const x = rand(0, 512), y = rand(0, 512), r = rand(20, 70);
     const grd = g.createRadialGradient(x, y, 0, x, y, r);
-    grd.addColorStop(0, `rgba(140,180,90,${rand(0.05, 0.16)})`);
+    grd.addColorStop(0, `rgba(160,200,110,${rand(0.05, 0.16)})`);
     grd.addColorStop(1, 'rgba(0,0,0,0)');
     g.fillStyle = grd;
     g.beginPath();
