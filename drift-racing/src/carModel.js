@@ -4,7 +4,7 @@
 //  VX-9 FURY  : 하이퍼카 — 캡포워드·초저 차체·스완넥 윙·대형 디퓨저·터보팬 휠
 // 비율 기준: 전장 4.3~4.6m, 전폭 2.08~2.20m, 전고 1.22~1.40m, 휠 지름 0.70~0.74m.
 // 도장은 클리어코트 + 환경맵 반사, 카본 파츠는 트윌 텍스처로 마감한다.
-import THREE from './three.js?v=20261117a';
+import THREE from './three.js?v=20261118a';
 
 export const CARS = [
   {
@@ -63,8 +63,8 @@ export const CARS = [
   },
   {
     id: 'vx', name: 'VX-9 FURY', role: '최고속 하이퍼카', color: 0xb6f02e, ui: '#b6ff45',
-    maxSpeed: 64, accel: 13.2, grip: 0.88, driftGrip: 0.9, steer: 0.94, hp: 0.88,
-    stats: { 속도: 0.96, 가속: 0.62, 드리프트: 0.55 }, spoiler: 'swan',
+    maxSpeed: 64, accel: 14.4, grip: 0.94, driftGrip: 0.98, steer: 1.0, hp: 0.95,
+    stats: { 속도: 0.95, 가속: 0.74, 드리프트: 0.70 }, spoiler: 'swan',
     design: {
       key: [
         [2.32, 0.68, 0.44], [2.26, 0.82, 0.53], [2.16, 0.92, 0.60], [2.02, 1.00, 0.665],

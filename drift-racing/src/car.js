@@ -5,13 +5,12 @@
 //   left(yaw) = (cos yaw, -sin yaw) … 차의 왼쪽 (모델 로컬 +X)
 //   input.steer = +1 → 오른쪽(우회전), -1 → 왼쪽(좌회전)
 //   yaw 를 증가시키면 정면이 left 쪽으로 돌므로, 우회전은 yawRate < 0 이다.
-import THREE from './three.js?v=20261117a';
-import { buildCar, updateCarVisual, applyBodyAttitude } from './carModel.js?v=20261117a';
-import { clamp, damp, TAU } from './util.js?v=20261117a';
+import THREE from './three.js?v=20261118a';
+import { buildCar, updateCarVisual, applyBodyAttitude } from './carModel.js?v=20261118a';
+import { clamp, damp, TAU } from './util.js?v=20261118a';
 
 const WHEELBASE = 2.7;
 const REVERSE_MAX = 12.5;
-const SLIP_DAMP = 8.5;
 // 드리프트 중 니트로 충전 배율 (아빠 피드백: 기존보다 3배 빠르게)
 const NITRO_DRIFT_GAIN = 3;
 // 후진이 발동되는 속도 임계값 — HUD 의 드리프트 버튼이 R 로 바뀌는 기준과 같다
@@ -20,6 +19,11 @@ const REVERSE_TRIGGER = 3.0;
 const ROLL_MAX = 0.18;
 // 가감속 피치 한계 (약 1.2°)
 const PITCH_MAX = 0.021;
+// 드리프트 슬립 — 차체가 진행 방향보다 코너 안쪽으로 향하는 각도(뒤가 살짝 흐르는 느낌).
+//  예전 30~38° 는 '옆으로 게걸음'이라 사용자가 싫어했고, 20261117a 의 ~10° 는 레일 위처럼 딱딱했다.
+//  16~18° 안팎이면 코너를 돌면서 뒤가 살짝 미끄러지는 게 체감되면서도 코너 밖으로 밀리지 않는다.
+const DRIFT_SLIP_RATIO = 0.30;   // 횡속도 ≤ |전진속도| × 0.30 (≈ 16.7°)
+const DRIFT_SLIP_GRIP = 7.6;     // 드리프트 중 횡감쇠 — 낮을수록 더 미끄러진다(정상상태 횡속도 ≈ 57 × driftGrip / 이 값)
 
 export class Car {
   constructor(spec, track) {
@@ -153,17 +157,6 @@ export class Car {
 
   get maxSpeed() { return this.spec.maxSpeed; }
 
-  /** 드리프트 중 목표 슬립(옆으로 흐르는) 속도 — 슬립각 12~19도 (옆으로 밀려나지 않는 아케이드 수준) */
-  driftSlipTarget(steer, yawRate) {
-    const a = Math.abs(this.speed);
-    if (a < 4) return 0;
-    const dir = Math.sign(steer) || Math.sign(this.vLat) || 1;
-    const ratio = clamp((0.22 + 0.12 * Math.abs(steer)) * (0.9 + 0.1 * this.spec.driftGrip), 0.2, 0.35);
-    // 회전(yaw)이 매 프레임 만들어내는 횡속도만큼 목표를 낮춰 실제 슬립각이 ratio 에 수렴하게
-    const feed = a * Math.abs(yawRate || 0) / SLIP_DAMP;
-    return dir * Math.max(0, Math.min(a * 0.94, a * ratio) - feed);
-  }
-
   update(dt, input) {
     const t = this.track;
     const proj = t.project(this.pos.x, this.pos.z, this.pathHint);
@@ -182,8 +175,9 @@ export class Car {
     this.steerVisual = damp(this.steerVisual, steer, 14, dt);
 
     // 유선형 조향 (속도가 높을수록 조향각 감소)
+    //  차종별 조향 특성(spec.steer)도 반영 — SLIDE-R 은 조금 더 예리하고 GT/VX-9 은 중립
     const speedNorm = clamp(Math.abs(this.speed) / spec.maxSpeed, 0, 1.4);
-    const maxSteer = 0.6 - 0.2 * Math.min(1, speedNorm) - 0.12 * Math.max(0, speedNorm - 1);
+    const maxSteer = (0.6 - 0.2 * Math.min(1, speedNorm) - 0.12 * Math.max(0, speedNorm - 1)) * (spec.steer || 1);
 
     // 현재 프레임 속도 분해
     const fwd = { x: Math.sin(this.yaw), z: Math.cos(this.yaw) };
@@ -299,14 +293,17 @@ export class Car {
       // 공중 — 속도 벡터 그대로 나아간다 (조종은 거의 들지 않는다)
       vLat *= Math.exp(-0.4 * dt);
     } else {
-      // 드리프트 중에도 차가 옆으로 밀리지 않는다 — 카트라이더·아스팔트처럼
-      //  차가 도는 방향 그대로 깔끔하게 커브를 돌아나간다(빠른 횡감쇠).
-      //  드리프트의 맛은 '더 날카로운 선회 + 차체 연출 + 스키드/미니터보'로 낸다.
+      // 드리프트 중에는 뒤가 살짝 흐르는 느낌을 낸다 — 횡감쇠를 낮춰 차체가 진행 방향보다
+      //  코너 안쪽을 16~18° 안팎으로 향하게 하고(오버스티어), 횡속도 한계도 그만큼만 푼다.
+      //  한계를 넘겨 30°+ 로 흐르면 코너 밖으로 밀리는 '게걸음'이 되므로 비율로 막는다.
       const gripping = this.drifting
-        ? 16.5
+        ? DRIFT_SLIP_GRIP
         : (mudNow ? 2.4 : offRoad ? 4.5 : 11.5);
       vLat *= Math.exp(-gripping * dt);
-      const latLimit = Math.abs(vLong) * 0.18;
+      const slipRatio = this.drifting
+        ? DRIFT_SLIP_RATIO * (0.92 + 0.08 * (spec.driftGrip || 1))   // SLIDE-R 은 조금 더 흐르고 VX-9 은 조금 더 안정적
+        : 0.18;
+      const latLimit = Math.abs(vLong) * slipRatio;
       vLat = clamp(vLat, -latLimit, latLimit);
       if (this.drifting && Math.abs(vLong) > 5) vLong += 2.2 * dt;
     }
@@ -492,8 +489,9 @@ export class Car {
 
     // 롤·피치·드리프트 연출은 차체에만 — 바퀴는 지면에 붙어 있다
     applyBodyAttitude(this.model, this.roll, this.pitch);
-    // 아케이드 드리프트 연출 — 차체만 코너 안쪽으로 살짝(최대 14°) 더 틀어 보인다
-    const driftVisTarget = this.drifting ? clamp(yawRate * 0.17, -0.24, 0.24) : 0;
+    // 아케이드 드리프트 연출 — 실제 슬립(16~18°)에 더해 차체만 코너 안쪽으로 조금 더(최대 ~7°)
+    //  틀어 보인다. 예전 14° 는 슬립이 작을 때의 대체 연출이라, 이제는 합쳐서 과해지지 않게 줄였다.
+    const driftVisTarget = this.drifting ? clamp(yawRate * 0.085, -0.12, 0.12) : 0;
     this.driftVis = damp(this.driftVis, driftVisTarget, this.drifting ? 10 : 7, dt);
     const bodyGroup = this.model.userData && this.model.userData.body;
     if (bodyGroup) bodyGroup.rotation.y = this.driftVis;
