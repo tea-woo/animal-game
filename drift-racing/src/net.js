@@ -2,9 +2,9 @@
 //  · 정적 GitHub Pages 에서도 iPhone Safari(LTE/5G/Wi-Fi, NAT 무관)끼리 붙도록
 //    WebSocket 위의 MQTT 3.1.1 을 직접 구현했다 (외부 라이브러리 0).
 //  · 방 코드(4자리) = 토픽 이름. 메시지는 JSON. 위치는 16Hz 로 보내고 받는 쪽은 보간한다.
-import THREE from './three.js?v=20261118a';
-import { CARS, buildCar, updateCarVisual, applyBodyAttitude } from './carModel.js?v=20261118a';
-import { clamp } from './util.js?v=20261118a';
+import THREE from './three.js?v=20261118b';
+import { CARS, buildCar, updateCarVisual, applyBodyAttitude } from './carModel.js?v=20261118b';
+import { clamp } from './util.js?v=20261118b';
 
 /* ── 브로커 후보 (앞에서부터 시도, 실패하면 다음으로) ────────── */
 export const BROKERS = [

@@ -1,15 +1,15 @@
 // DRIFT LEGEND — 부트스트랩·레이스 진행·카메라·메인 루프
-import THREE from './three.js?v=20261118a';
-import { buildTrack, COURSES } from './track.js?v=20261118a';
-import { CARS, buildCar } from './carModel.js?v=20261118a';
-import { Car } from './car.js?v=20261118a';
-import { AICar } from './ai.js?v=20261118a';
-import { Effects, NitroFlame } from './vfx.js?v=20261118a';
-import { Hud } from './hud.js?v=20261118a';
-import { Input } from './input.js?v=20261118a';
-import { Sfx } from './audio.js?v=20261118a';
-import { Net, RemoteCar, makeRoomCode, roomFromUrl, courseFromUrl, inviteLink, BROKERS } from './net.js?v=20261118a';
-import { clamp, lerp, damp, formatTime, rand } from './util.js?v=20261118a';
+import THREE from './three.js?v=20261118b';
+import { buildTrack, COURSES } from './track.js?v=20261118b';
+import { CARS, buildCar } from './carModel.js?v=20261118b';
+import { Car } from './car.js?v=20261118b';
+import { AICar } from './ai.js?v=20261118b';
+import { Effects, NitroFlame } from './vfx.js?v=20261118b';
+import { Hud } from './hud.js?v=20261118b';
+import { Input } from './input.js?v=20261118b';
+import { Sfx } from './audio.js?v=20261118b';
+import { Net, RemoteCar, makeRoomCode, roomFromUrl, courseFromUrl, inviteLink, BROKERS } from './net.js?v=20261118b';
+import { clamp, lerp, damp, formatTime, rand } from './util.js?v=20261118b';
 
 const TOTAL_LAPS = 3;
 const GRID = [
@@ -1792,7 +1792,7 @@ window.__drift = {
     push('스키드마크', st.skids > 0, `quads=${st.skids}`);
     push('연기 파티클', st.smoke > 0, `particles=${st.smoke}`);
     push('드리프트 선회(차가 돈다)', yawTurn > 0.45, `회전=${(yawTurn * 180 / Math.PI).toFixed(0)}°`);
-    push('뒤가 살짝 미끄러지는 드리프트(슬립 12~22°)', maxSlip >= 12 && maxSlip <= 22 && maxLat < 10, `최대 슬립각=${maxSlip.toFixed(1)}° · 최대 횡속도=${maxLat.toFixed(2)}m/s`);
+    push('뒤가 미끄러지는 드리프트(슬립 20~28°)', maxSlip >= 20 && maxSlip <= 28 && maxLat < 12, `최대 슬립각=${maxSlip.toFixed(1)}° · 최대 횡속도=${maxLat.toFixed(2)}m/s`);
 
     // 3) 미니 터보
     g.debugInput = { steer: 0, drift: false, boost: false, brake: false };

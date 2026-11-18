@@ -5,9 +5,9 @@
 //   left(yaw) = (cos yaw, -sin yaw) … 차의 왼쪽 (모델 로컬 +X)
 //   input.steer = +1 → 오른쪽(우회전), -1 → 왼쪽(좌회전)
 //   yaw 를 증가시키면 정면이 left 쪽으로 돌므로, 우회전은 yawRate < 0 이다.
-import THREE from './three.js?v=20261118a';
-import { buildCar, updateCarVisual, applyBodyAttitude } from './carModel.js?v=20261118a';
-import { clamp, damp, TAU } from './util.js?v=20261118a';
+import THREE from './three.js?v=20261118b';
+import { buildCar, updateCarVisual, applyBodyAttitude } from './carModel.js?v=20261118b';
+import { clamp, damp, TAU } from './util.js?v=20261118b';
 
 const WHEELBASE = 2.7;
 const REVERSE_MAX = 12.5;
@@ -19,11 +19,12 @@ const REVERSE_TRIGGER = 3.0;
 const ROLL_MAX = 0.18;
 // 가감속 피치 한계 (약 1.2°)
 const PITCH_MAX = 0.021;
-// 드리프트 슬립 — 차체가 진행 방향보다 코너 안쪽으로 향하는 각도(뒤가 살짝 흐르는 느낌).
+// 드리프트 슬립 — 차체가 진행 방향보다 코너 안쪽으로 향하는 각도(뒤가 흐르는 느낌).
 //  예전 30~38° 는 '옆으로 게걸음'이라 사용자가 싫어했고, 20261117a 의 ~10° 는 레일 위처럼 딱딱했다.
-//  16~18° 안팎이면 코너를 돌면서 뒤가 살짝 미끄러지는 게 체감되면서도 코너 밖으로 밀리지 않는다.
-const DRIFT_SLIP_RATIO = 0.30;   // 횡속도 ≤ |전진속도| × 0.30 (≈ 16.7°)
-const DRIFT_SLIP_GRIP = 7.6;     // 드리프트 중 횡감쇠 — 낮을수록 더 미끄러진다(정상상태 횡속도 ≈ 57 × driftGrip / 이 값)
+//  20261118a 의 16.7° 도 아직 밋밋하다는 피드백("더 미끄러지게")으로 22~26° 로 한 단계 더 풀었다.
+//  이 구간에서는 뒤가 확실히 흐르며 탄력 있게 감아 돌고, 30°+ 의 게걸음으로 코너 밖 벽에 박지는 않는다.
+const DRIFT_SLIP_RATIO = 0.45;   // 횡속도 ≤ |전진속도| × 0.45 (≈ 24.2°)
+const DRIFT_SLIP_GRIP = 4.6;     // 드리프트 중 횡감쇠 — 낮을수록 더 미끄러진다(정상상태 횡속도 ≈ 57 × driftGrip / 이 값)
 
 export class Car {
   constructor(spec, track) {
@@ -293,8 +294,8 @@ export class Car {
       // 공중 — 속도 벡터 그대로 나아간다 (조종은 거의 들지 않는다)
       vLat *= Math.exp(-0.4 * dt);
     } else {
-      // 드리프트 중에는 뒤가 살짝 흐르는 느낌을 낸다 — 횡감쇠를 낮춰 차체가 진행 방향보다
-      //  코너 안쪽을 16~18° 안팎으로 향하게 하고(오버스티어), 횡속도 한계도 그만큼만 푼다.
+      // 드리프트 중에는 뒤가 흐르는 느낌을 낸다 — 횡감쇠를 낮춰 차체가 진행 방향보다
+      //  코너 안쪽을 22~26° 안팎으로 향하게 하고(오버스티어), 횡속도 한계도 그만큼만 푼다.
       //  한계를 넘겨 30°+ 로 흐르면 코너 밖으로 밀리는 '게걸음'이 되므로 비율로 막는다.
       const gripping = this.drifting
         ? DRIFT_SLIP_GRIP
