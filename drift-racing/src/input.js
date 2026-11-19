@@ -1,5 +1,5 @@
 // 입력 — 키보드 + 멀티터치 버튼, iOS 확대·스크롤 차단
-import { clamp } from './util.js?v=20261119a';
+import { clamp } from './util.js?v=20261119b';
 
 export class Input {
   constructor() {

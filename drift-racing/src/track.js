@@ -1,12 +1,12 @@
 // 코스 생성 — 레이싱 서킷(아스팔트) / 오프로드(흙·자갈) 두 가지 코스를 만든다.
 //  · 코스 선택은 buildTrack(scene, 'circuit' | 'offroad') 로 하고, 바꿀 때는 반환된
 //    track.dispose() 로 이전 코스의 지오메트리·재질·텍스처를 모두 정리한다.
-import THREE from './three.js?v=20261119a';
-import { clamp, rand, TAU } from './util.js?v=20261119a';
+import THREE from './three.js?v=20261119b';
+import { clamp, rand, TAU } from './util.js?v=20261119b';
 import {
   asphaltTexture, dirtRoadTexture, dirtGroundTexture, curbTexture, grassTexture,
   buildingTexture, bannerTexture, crowdTexture, signTexture, numberTexture, woodTexture,
-} from './textures.js?v=20261119a';
+} from './textures.js?v=20261119b';
 
 /* ── 코스 정의 ─────────────────────────────────────────── */
 export const COURSES = {
