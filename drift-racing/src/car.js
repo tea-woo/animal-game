@@ -5,9 +5,9 @@
 //   left(yaw) = (cos yaw, -sin yaw) … 차의 왼쪽 (모델 로컬 +X)
 //   input.steer = +1 → 오른쪽(우회전), -1 → 왼쪽(좌회전)
 //   yaw 를 증가시키면 정면이 left 쪽으로 돌므로, 우회전은 yawRate < 0 이다.
-import THREE from './three.js?v=20261118b';
-import { buildCar, updateCarVisual, applyBodyAttitude } from './carModel.js?v=20261118b';
-import { clamp, damp, TAU } from './util.js?v=20261118b';
+import THREE from './three.js?v=20261119a';
+import { buildCar, updateCarVisual, applyBodyAttitude } from './carModel.js?v=20261119a';
+import { clamp, damp, TAU } from './util.js?v=20261119a';
 
 const WHEELBASE = 2.7;
 const REVERSE_MAX = 12.5;
@@ -21,10 +21,13 @@ const ROLL_MAX = 0.18;
 const PITCH_MAX = 0.021;
 // 드리프트 슬립 — 차체가 진행 방향보다 코너 안쪽으로 향하는 각도(뒤가 흐르는 느낌).
 //  예전 30~38° 는 '옆으로 게걸음'이라 사용자가 싫어했고, 20261117a 의 ~10° 는 레일 위처럼 딱딱했다.
-//  20261118a 의 16.7° 도 아직 밋밋하다는 피드백("더 미끄러지게")으로 22~26° 로 한 단계 더 풀었다.
-//  이 구간에서는 뒤가 확실히 흐르며 탄력 있게 감아 돌고, 30°+ 의 게걸음으로 코너 밖 벽에 박지는 않는다.
-const DRIFT_SLIP_RATIO = 0.45;   // 횡속도 ≤ |전진속도| × 0.45 (≈ 24.2°)
-const DRIFT_SLIP_GRIP = 4.6;     // 드리프트 중 횡감쇠 — 낮을수록 더 미끄러진다(정상상태 횡속도 ≈ 57 × driftGrip / 이 값)
+//  20261119a 의 9° 안팎(실주행)도 여전히 밋밋하다는 피드백으로 28~30° 상한까지 풀었다.
+//  이 구간에서는 뒤가 확실히 흐르며 탄력 있게 감아 돌고, 35°+ 의 게걸음으로 코너 밖 벽에 박지는 않는다.
+const DRIFT_SLIP_RATIO = 0.58;   // 횡속도 ≤ |전진속도| × 0.58 (≈ 30.1°)
+const DRIFT_SLIP_GRIP = 2.4;     // 드리프트 중 횡감쇠 — 낮을수록 더 미끄러진다(정상상태 횡속도 ≈ 57 × driftGrip / 이 값)
+// 드리프트를 놓은 뒤 접지력이 11.5 로 뚝 튀지 않게 되돌아오는 시간(초, 지수 감쇠 시정수)
+//  실제로는 아직 옆으로 흐르고 있는데 접지가 순간적으로 붙으면 슬라이드가 '뚝' 끊긴다.
+const DRIFT_GRIP_RECOVER = 0.36;
 
 export class Car {
   constructor(spec, track) {
@@ -45,6 +48,8 @@ export class Car {
     this.driftTime = 0;
     this.driftLevel = 0;
     this.driftCharge = 0;   // 0~1 게이지
+    this.driftGrip = 0;     // 1 = 드리프트 접지, 0 = 완전 접지 — 해제 후 여운을 두고 돌아온다
+    this.driftSteerGrace = 0; // 조향을 잠깐 놓아도 드리프트 판정을 유지하는 관성(초)
     this.nitro = 0.35;      // 0~1
     this.boostTimer = 0;
     this.boostPower = 0;
@@ -93,6 +98,8 @@ export class Car {
     this.driftTime = 0;
     this.driftCharge = 0;
     this.driftLevel = 0;
+    this.driftGrip = 0;
+    this.driftSteerGrace = 0;
     this.nitro = 0.35;
     this.boostTimer = 0;
     this.topSpeed = 0;
@@ -240,7 +247,12 @@ export class Car {
     this.brake = (input.brake || driftBrake || (this.reversing && vLong > 0.4)) ? 1 : 0;
 
     /* ── 드리프트 판정 ────────────────────────────────── */
-    const canDrift = !this.reversing && Math.abs(vLong) > 8.5 && Math.abs(steer) > 0.1 && !offRoad;
+    // 모바일 터치에서 조향 버튼을 잠깐 떼는 순간에도 DRIFT 를 쥐고 있으면 0.25초 관성 유지 —
+    //  판정이 즉시 풀려 슬라이드가 뚝 끊기고 드리프트 레벨/니트로가 리셋되던 문제를 막는다.
+    if (Math.abs(steer) > 0.1) this.driftSteerGrace = 0.25;
+    else this.driftSteerGrace = Math.max(0, this.driftSteerGrace - dt);
+    const steerForDrift = Math.abs(steer) > 0.1 || (wantsDrift && this.drifting && this.driftSteerGrace > 0);
+    const canDrift = !this.reversing && Math.abs(vLong) > 8.5 && steerForDrift && !offRoad;
     const drifting = wantsDrift && canDrift;
     if (drifting) {
       if (!this.drifting) {
@@ -295,15 +307,19 @@ export class Car {
       vLat *= Math.exp(-0.4 * dt);
     } else {
       // 드리프트 중에는 뒤가 흐르는 느낌을 낸다 — 횡감쇠를 낮춰 차체가 진행 방향보다
-      //  코너 안쪽을 22~26° 안팎으로 향하게 하고(오버스티어), 횡속도 한계도 그만큼만 푼다.
-      //  한계를 넘겨 30°+ 로 흐르면 코너 밖으로 밀리는 '게걸음'이 되므로 비율로 막는다.
+      //  코너 안쪽을 28~30° 안팎으로 향하게 하고(오버스티어), 횡속도 한계도 그만큼만 푼다.
+      //  한계를 넘겨 35°+ 로 흐르면 코너 밖으로 밀리는 '게걸음'이 되므로 비율로 막는다.
+      // 드리프트 접지 여운 — 드리프트를 막 끝냈거나 조향을 잠깐 놓아 판정이 풀려도
+      //  접지력이 11.5 로 곧바로 튀지 않고, 아직 남은 횡속도가 서서히 잡히며 슬라이드가 이어진다.
+      this.driftGrip = this.drifting ? 1 : damp(this.driftGrip, 0, 1 / DRIFT_GRIP_RECOVER * 2.8, dt);
+      const gripBase = mudNow ? 2.4 : offRoad ? 4.5 : 11.5;
       const gripping = this.drifting
         ? DRIFT_SLIP_GRIP
-        : (mudNow ? 2.4 : offRoad ? 4.5 : 11.5);
+        : gripBase - (gripBase - DRIFT_SLIP_GRIP) * this.driftGrip;
       vLat *= Math.exp(-gripping * dt);
       const slipRatio = this.drifting
         ? DRIFT_SLIP_RATIO * (0.92 + 0.08 * (spec.driftGrip || 1))   // SLIDE-R 은 조금 더 흐르고 VX-9 은 조금 더 안정적
-        : 0.18;
+        : 0.18 + (DRIFT_SLIP_RATIO - 0.18) * this.driftGrip;         // 해제 직후에도 남은 횡속도를 잘라내지 않는다
       const latLimit = Math.abs(vLong) * slipRatio;
       vLat = clamp(vLat, -latLimit, latLimit);
       if (this.drifting && Math.abs(vLong) > 5) vLong += 2.2 * dt;
@@ -490,9 +506,9 @@ export class Car {
 
     // 롤·피치·드리프트 연출은 차체에만 — 바퀴는 지면에 붙어 있다
     applyBodyAttitude(this.model, this.roll, this.pitch);
-    // 아케이드 드리프트 연출 — 실제 슬립(16~18°)에 더해 차체만 코너 안쪽으로 조금 더(최대 ~7°)
-    //  틀어 보인다. 예전 14° 는 슬립이 작을 때의 대체 연출이라, 이제는 합쳐서 과해지지 않게 줄였다.
-    const driftVisTarget = this.drifting ? clamp(yawRate * 0.085, -0.12, 0.12) : 0;
+    // 아케이드 드리프트 연출 — 실제 슬립(28~30°)에 더해 차체만 코너 안쪽으로 조금 더(최대 ~14°)
+    //  틀어 보인다. 카메라가 진행 궤적을 따라가므로 이 틀어짐이 화면에서 미끄러지는 각도로 보인다.
+    const driftVisTarget = this.drifting ? clamp(yawRate * 0.13, -0.24, 0.24) : 0;
     this.driftVis = damp(this.driftVis, driftVisTarget, this.drifting ? 10 : 7, dt);
     const bodyGroup = this.model.userData && this.model.userData.body;
     if (bodyGroup) bodyGroup.rotation.y = this.driftVis;
