@@ -1,15 +1,15 @@
 // DRIFT LEGEND — 부트스트랩·레이스 진행·카메라·메인 루프
-import THREE from './three.js?v=20261120a';
-import { buildTrack, COURSES } from './track.js?v=20261120a';
-import { CARS, buildCar } from './carModel.js?v=20261120a';
-import { Car } from './car.js?v=20261120a';
-import { AICar } from './ai.js?v=20261120a';
-import { Effects, NitroFlame } from './vfx.js?v=20261120a';
-import { Hud } from './hud.js?v=20261120a';
-import { Input } from './input.js?v=20261120a';
-import { Sfx } from './audio.js?v=20261120a';
-import { Net, RemoteCar, makeRoomCode, roomFromUrl, courseFromUrl, inviteLink, BROKERS } from './net.js?v=20261120a';
-import { clamp, lerp, damp, formatTime, rand } from './util.js?v=20261120a';
+import THREE from './three.js?v=20261121a';
+import { buildTrack, COURSES } from './track.js?v=20261121a';
+import { CARS, buildCar } from './carModel.js?v=20261121a';
+import { Car } from './car.js?v=20261121a';
+import { AICar } from './ai.js?v=20261121a';
+import { Effects, NitroFlame } from './vfx.js?v=20261121a';
+import { Hud } from './hud.js?v=20261121a';
+import { Input } from './input.js?v=20261121a';
+import { Sfx } from './audio.js?v=20261121a';
+import { Net, RemoteCar, makeRoomCode, roomFromUrl, courseFromUrl, inviteLink, BROKERS } from './net.js?v=20261121a';
+import { clamp, lerp, damp, formatTime, rand } from './util.js?v=20261121a';
 
 const TOTAL_LAPS = 3;
 const GRID = [
@@ -1803,8 +1803,13 @@ window.__drift = {
     //     모두 놓으면 한 박자 더 미끄러진 뒤 접지가 돌아온다
     g.debugInput = { steer: 0, drift: true, boost: false, brake: false };
     window.__drift.tick(15);   // 0.25초 — 조향을 뗀 체로
-    push('조향 잠깐 떼도 드리프트 유지(0.35초 여운)', g.player.drifting && g.player.driftSteerGrace > 0,
-      `drifting=${g.player.drifting} · grace=${g.player.driftSteerGrace.toFixed(2)}s · 슬립=${(g.player.slip * 180 / Math.PI).toFixed(1)}°`);
+    const graceMid = { drifting: g.player.drifting, grace: g.player.driftSteerGrace };
+    window.__drift.tick(9);    // 누적 0.40초 — 0.42초 여운이 아직 살아 있는 지점
+    const graceStill = { drifting: g.player.drifting, grace: g.player.driftSteerGrace };
+    window.__drift.tick(6);    // 누적 0.50초 — 여운이 끝난 뒤
+    const graceEnd = { drifting: g.player.drifting, grace: g.player.driftSteerGrace };
+    push('조향 잠깐 떼도 드리프트 유지(0.42초 여운)', graceMid.drifting && graceMid.grace > 0 && graceStill.drifting && !graceEnd.drifting,
+      `0.25초 drifting=${graceMid.drifting}(grace ${graceMid.grace.toFixed(2)}s) · 0.40초 drifting=${graceStill.drifting}(grace ${graceStill.grace.toFixed(2)}s) · 0.50초 drifting=${graceEnd.drifting}`);
     g.debugInput = { steer: 0.42, drift: true, boost: false, brake: false };
     window.__drift.tick(15);
     const slipAtRelease = g.player.slip * 180 / Math.PI;
@@ -1817,17 +1822,29 @@ window.__drift = {
     window.__drift.tick(18);   // 누적 0.6초
     const slip600 = g.player.slip * 180 / Math.PI;
     const grip600 = g.player.driftGrip;
-    window.__drift.tick(18);   // 누적 0.9초 — 유지 0.26 + 복귀 0.88 여운이 끝난 지점
+    window.__drift.tick(18);   // 누적 0.9초
     const slip900 = g.player.slip * 180 / Math.PI;
     const grip900 = g.player.driftGrip;
-    g.track.railOff = railOff0; g.track.halfWidth = halfWidth0;
-    push('손 뗀 뒤 한 박자 미끄러짐(여운 0.26+0.88초)', slip100 >= 15 && grip100 > 0.85 && slip300 > 5 && grip600 > 0.25 && grip900 < 0.1 && slip900 < 3,
-      `슬립 ${slipAtRelease.toFixed(1)}° → 0.1초 ${slip100.toFixed(1)}° → 0.3초 ${slip300.toFixed(1)}° → 0.6초 ${slip600.toFixed(1)}° → 0.9초 ${slip900.toFixed(1)}° · 접지여운 ${grip100.toFixed(2)}→${grip600.toFixed(2)}→${grip900.toFixed(2)}`);
+    window.__drift.tick(12);   // 누적 1.1초
+    const grip1100 = g.player.driftGrip;
+    window.__drift.tick(12);   // 누적 1.3초 — 유지 0.42 + 복귀 1.25 여운이 끝난 지점
+    const slip1300 = g.player.slip * 180 / Math.PI;
+    const grip1300 = g.player.driftGrip;
+    push('손 뗀 뒤 한 박자 미끄러짐(여운 0.42+1.25초)', slip100 >= slipAtRelease * 0.75 && grip100 > 0.95 && slip300 > 5 &&
+      grip600 > 0.8 && grip600 < 0.95 && grip900 > 0.3 && grip900 < 0.5 && grip1100 < 0.15 && grip1300 < 0.02 && slip1300 < 3,
+      `슬립 ${slipAtRelease.toFixed(1)}° → 0.1초 ${slip100.toFixed(1)}° → 0.3초 ${slip300.toFixed(1)}° → 0.6초 ${slip600.toFixed(1)}° → 0.9초 ${slip900.toFixed(1)}° → 1.3초 ${slip1300.toFixed(1)}° · 접지여운 ${grip100.toFixed(2)}→${grip600.toFixed(2)}→${grip900.toFixed(2)}→${grip1100.toFixed(2)}→${grip1300.toFixed(2)}`);
 
-    // 3) 미니 터보
+    // 3) 미니 터보 — 짧게 드리프트했다 놓으면 터보가 붙는다
+    //    (여운 측정이 1.3초로 길어져 그 사이 터보가 다 빠지므로 여기서 새로 한 번)
+    //    레일·노면 한계는 이 측정이 끝난 뒤 되돌린다(가드레일 접촉·잔디로 드리프트가 막히지 않게)
+    g.debugInput = { steer: 0.35, drift: true, boost: false, brake: false };
+    const dt0 = g.player.driftTime;
+    window.__drift.tick(40);
+    const dt1 = g.player.driftTime, kmhMid = g.player.kmh;
     g.debugInput = { steer: 0, drift: false, boost: false, brake: false };
     st = window.__drift.tick(2);
-    push('미니 터보 발동', st.boost > 0, `boostTimer=${st.boost.toFixed(2)}`);
+    g.track.railOff = railOff0; g.track.halfWidth = halfWidth0;
+    push('미니 터보 발동', st.boost > 0, `boostTimer=${st.boost.toFixed(2)} · 드리프트 ${dt0.toFixed(2)}→${dt1.toFixed(2)}초 @${kmhMid.toFixed(0)}km/h`);
 
     // 4) 니트로
     const n0 = g.player.nitro;

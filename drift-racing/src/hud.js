@@ -1,5 +1,5 @@
 // HUD — 랩·순위·기록·속도계·드리프트/니트로 게이지·코스 미니맵
-import { clamp, formatTime } from './util.js?v=20261120a';
+import { clamp, formatTime } from './util.js?v=20261121a';
 
 const DEFAULT_PAL = {
   bg: 'rgba(10, 17, 28, 0.55)',

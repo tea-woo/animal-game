@@ -5,9 +5,9 @@
 //   left(yaw) = (cos yaw, -sin yaw) … 차의 왼쪽 (모델 로컬 +X)
 //   input.steer = +1 → 오른쪽(우회전), -1 → 왼쪽(좌회전)
 //   yaw 를 증가시키면 정면이 left 쪽으로 돌므로, 우회전은 yawRate < 0 이다.
-import THREE from './three.js?v=20261120a';
-import { buildCar, updateCarVisual, applyBodyAttitude } from './carModel.js?v=20261120a';
-import { clamp, damp, smoothstep, TAU } from './util.js?v=20261120a';
+import THREE from './three.js?v=20261121a';
+import { buildCar, updateCarVisual, applyBodyAttitude } from './carModel.js?v=20261121a';
+import { clamp, damp, smoothstep, TAU } from './util.js?v=20261121a';
 
 const WHEELBASE = 2.7;
 const REVERSE_MAX = 12.5;
@@ -28,11 +28,13 @@ const DRIFT_SLIP_GRIP = 4.6;     // 드리프트 중 횡감쇠 — 낮을수록 
 // 드리프트를 놓은 뒤 접지력이 11.5 로 뚝 튀지 않게 되돌아오는 시간(초)
 //  실제로는 아직 옆으로 흐르고 있는데 접지가 순간적으로 붙으면 슬라이드가 '뚝' 끊긴다.
 //  이 시간 동안 접지력 4.6→11.5·슬립 상한 0.45→0.18 이 부드럽게 복귀한다(손 뗀 뒤 한 박자 여운).
-const DRIFT_GRIP_RECOVER = 0.88;
+//  20261121a — 한 단계 더 길게: 유지 0.26→0.42초 · 복귀 0.88→1.25초
+const DRIFT_GRIP_RECOVER = 1.25;
 // 해제 직후 이 시간만큼은 접지를 거의 풀어둔 채 그대로 흘러간다(여운의 앞부분)
-const DRIFT_GRIP_HOLD = 0.26;
+const DRIFT_GRIP_HOLD = 0.42;
 // DRIFT 를 쥔 채 조향 버튼을 잠깐 떼어도 드리프트 판정을 유지하는 관성(초) — 모바일 손가락 여운
-const DRIFT_STEER_GRACE = 0.35;
+//  20261121a — 0.35→0.42초
+const DRIFT_STEER_GRACE = 0.42;
 
 export class Car {
   constructor(spec, track) {
@@ -316,7 +318,7 @@ export class Car {
       // 드리프트 중에는 뒤가 흐르는 느낌을 낸다 — 횡감쇠를 낮춰 차체가 진행 방향보다
       //  코너 안쪽을 22~26° 안팎으로 향하게 하고(오버스티어), 횡속도 한계도 그만큼만 푼다.
       // 드리프트 접지 여운 — 드리프트를 막 끝냈거나 조향을 잠깐 놓아 판정이 풀려도
-      //  접지력이 11.5 로 곧바로 튀지 않고, DRIFT_GRIP_RECOVER(0.88초) 동안 부드럽게 돌아오며
+      //  접지력이 11.5 로 곧바로 튀지 않고, DRIFT_GRIP_RECOVER(1.25초) 동안 부드럽게 돌아오며
       //  아직 남은 횡속도가 서서히 잡혀 슬라이드가 '한 박자' 이어진다.
       if (this.drifting) {
         this.driftGrip = 1;
@@ -324,7 +326,7 @@ export class Car {
       } else if (this.driftGrip > 0) {
         this.driftEase = Math.min(DRIFT_GRIP_RECOVER, this.driftEase + dt);
         const u = (this.driftEase - DRIFT_GRIP_HOLD) / (DRIFT_GRIP_RECOVER - DRIFT_GRIP_HOLD);
-        //  20261120a — 여운을 조금 더 길게: 유지 0.15→0.26초 · 복귀 0.65→0.88초
+        //  20261121a — 여운을 한 단계 더 길게: 유지 0.26→0.42초 · 복귀 0.88→1.25초
         this.driftGrip = 1 - smoothstep(u);   // 앞부분은 미끄러지고 끝은 뚝 끊기지 않게 부드럽게
       }
       const gripBase = mudNow ? 2.4 : offRoad ? 4.5 : 11.5;
@@ -523,10 +525,10 @@ export class Car {
     // 롤·피치·드리프트 연출은 차체에만 — 바퀴는 지면에 붙어 있다
     applyBodyAttitude(this.model, this.roll, this.pitch);
     // 아케이드 드리프트 연출 — 실제 슬립(22~26°)에 더해 차체만 코너 안쪽으로 조금 더(최대 ~7°)
-    //  틀어 보인다. 해제 시에는 3.4 로 천천히 풀어 시각적으로도 여운이 자연스럽게 이어진다
-    //  (20261120a — 접지 복귀가 0.88초로 길어진 만큼 차체 틀어짐도 그 길이에 맞춰 더디게 풀린다).
+    //  틀어 보인다. 해제 시에는 2.6 으로 천천히 풀어 시각적으로도 여운이 자연스럽게 이어진다
+    //  (20261121a — 접지 복귀가 1.25초로 길어진 만큼 차체 틀어짐도 그 길이에 맞춰 더디게 풀린다).
     const driftVisTarget = this.drifting ? clamp(yawRate * 0.085, -0.12, 0.12) : 0;
-    this.driftVis = damp(this.driftVis, driftVisTarget, this.drifting ? 10 : 3.4, dt);
+    this.driftVis = damp(this.driftVis, driftVisTarget, this.drifting ? 10 : 2.6, dt);
     const bodyGroup = this.model.userData && this.model.userData.body;
     if (bodyGroup) bodyGroup.rotation.y = this.driftVis;
     updateCarVisual(this, dt);
